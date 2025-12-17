@@ -1,0 +1,251 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String            @id @default(cuid())
+  username           String            @unique
+  name               String?
+  email              String?           @unique
+  emailVerified      Boolean?
+  image              String?
+  phoneNumber        String?
+  password           String?
+  role               Role              @default(AGENT)
+  banned             Boolean           @default(false)
+  mustChangePassword Boolean           @default(true)
+
+  twoFactorEnabled   Boolean           @default(false)
+  twoFactorSecret    String?
+  backupCodes        String[]
+  expiresAt          DateTime?
+
+  parentId           String?
+  parent             User?             @relation("UserHierarchy", fields: [parentId], references: [id])
+  children           User[]            @relation("UserHierarchy")
+
+  betSettings        Json?
+
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  createdOrders      Order?            @relation("CreatedUser")
+  orders             Order[]           @relation("UserOrders")
+  securityLogs       SecurityLog[]
+
+  tickets            Ticket[]
+  
+  accounts           Account[]
+  sessions           Session[]
+
+  @@index([parentId])
+  @@index([username])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id           String    @id @default(cuid())
+  userId       String
+  accountId    String
+  providerId   String
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  password     String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+}
+
+model SecurityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  ipAddress String?
+  userAgent String?
+  details   String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model SubscriptionPackage {
+  id          String   @id @default(cuid())
+  name        String
+  price       Decimal  @db.Decimal(12, 0)
+  durationDay Int
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  orders      Order[]
+}
+
+model Order {
+  id            String              @id @default(cuid())
+  code          String              @unique
+  packageId     String
+  amount        Decimal             @db.Decimal(12, 0)
+  status        OrderStatus         @default(PENDING)
+  type          OrderType
+  userId        String?
+  createdUserId String?             @unique
+  bankCode      String?
+  paymentDate   DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  createdUser   User?               @relation("CreatedUser", fields: [createdUserId], references: [id])
+  package       SubscriptionPackage @relation(fields: [packageId], references: [id])
+  user          User?               @relation("UserOrders", fields: [userId], references: [id])
+}
+
+enum Role {
+  ADMIN
+  AGENT
+  PLAYER
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  FAILED
+}
+
+enum OrderType {
+  NEW_REGISTER
+  RENEWAL
+}
+
+model LotteryProvince {
+  id        String   @id @default(cuid())
+  name      String
+  aliases   String
+  region    Region   @default(MN) 
+  
+  schedules LotterySchedule[]
+  bets      Bet[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("lottery_province")
+}
+
+model BetType {
+  id          String   @id @default(cuid())
+  name        String
+  aliases     String
+
+  bets        Bet[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("bet_type")
+}
+
+model LotterySchedule {
+  id          String   @id @default(cuid())
+  dayOfWeek   Int      // 0=CN, 1=T2...
+  region      Region
+  
+  provinceId  String
+  province    LotteryProvince @relation(fields: [provinceId], references: [id], onDelete: Cascade)
+  ordering    Int      @default(1)
+
+  @@unique([dayOfWeek, provinceId]) 
+  @@map("lottery_schedule")
+}
+
+enum Region {
+  MB
+  MT
+  MN
+}
+
+model Ticket {
+  id          String       @id @default(cuid())
+  userId      String    
+  user        User         @relation(fields: [userId], references: [id])
+  
+  rawContent  String       @db.Text
+  region      Region
+  totalAmount Decimal      @default(0) @db.Decimal(12, 0)
+  status      TicketStatus @default(PENDING)
+  errorMsg    String?
+  
+  createdAt   DateTime     @default(now())
+  
+  bets        Bet[]
+
+  @@map("ticket")
+}
+
+model Bet {
+  id          String          @id @default(cuid())
+  ticketId    String
+  ticket      Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  
+  drawDate    DateTime        // Ngày xổ
+  
+  provinceId  String
+  province    LotteryProvince @relation(fields: [provinceId], references: [id])
+  
+  typeId      String
+  betType     BetType         @relation(fields: [typeId], references: [id])
+  
+  numbers     String          // "10" hoặc "10-20"
+  amount      Decimal         @db.Decimal(12, 0)
+  odds        Float           // Tỷ lệ ăn lúc cược
+  
+  // Kết quả
+  isWin       Boolean         @default(false)
+  winCount    Int             @default(0)
+  winAmount   Decimal         @default(0) @db.Decimal(12, 0)
+
+  createdAt   DateTime        @default(now())
+
+  @@index([drawDate])
+  @@index([provinceId])
+  @@map("bet")
+}
+
+enum TicketStatus {
+  PENDING
+  COMPLETED
+  ERROR
+}
