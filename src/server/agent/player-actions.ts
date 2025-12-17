@@ -8,9 +8,10 @@ import { z } from "zod";
 import { Role, Prisma } from "@prisma/client";
 import { DEFAULT_BET_SETTINGS, BetSettings } from "@/types/bet-settings";
 
+// 1. Schema Validation
 const PlayerSchema = z.object({
-    username: z.string().min(3, "Tài khoản tối thiểu 3 ký tự").regex(/^[a-zA-Z0-9_]+$/, "Chỉ chứa chữ không dấu, số và gạch dưới"),
-    name: z.string().optional(),
+    name: z.string().min(1, "Vui lòng nhập tên khách (VD: Anh Ba)"),
+    phoneNumber: z.string().optional(),
     banned: z.boolean().optional(),
     betSettings: z.custom<BetSettings>().optional(),
 });
@@ -25,74 +26,99 @@ async function checkAgent() {
     return user.id;
 }
 
+// Hàm sinh username ngẫu nhiên
+function generateRandomUsername() {
+    return `khach_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+}
+
+// --- TẠO PLAYER ---
 export async function createPlayer(data: CreatePlayerInput) {
     try {
+        // FIX LỖI 1: Sử dụng PlayerSchema để validate dữ liệu đầu vào (Runtime check)
+        const validatedData = PlayerSchema.parse(data);
+
         const agentId = await checkAgent();
 
-        // 1. Kiểm tra trùng username
-        const exists = await db.user.findUnique({ where: { username: data.username } });
-        if (exists) return { error: "Tên tài khoản đã tồn tại" };
+        // FIX LỖI 2: Dùng const thay vì let vì biến này không bị gán lại
+        const finalPhone = validatedData.phoneNumber && validatedData.phoneNumber.trim() !== "" 
+            ? validatedData.phoneNumber 
+            : null;
+        
+        let finalUsername = "";
 
-        // 2. Lấy cấu hình giá của Agent để làm mẫu (Kế thừa)
+        if (finalPhone) {
+            // Check trùng SĐT
+            const exists = await db.user.findFirst({
+                where: {
+                    OR: [
+                        { username: finalPhone },
+                        { phoneNumber: finalPhone }
+                    ]
+                }
+            });
+            if (exists) return { error: "Số điện thoại này đã tồn tại trong hệ thống" };
+            finalUsername = finalPhone;
+        } else {
+            finalUsername = generateRandomUsername();
+        }
+
         const agent = await db.user.findUnique({
             where: { id: agentId },
             select: { betSettings: true }
         });
-
         const baseSettings = (agent?.betSettings as unknown as BetSettings) || DEFAULT_BET_SETTINGS;
-        
-        const finalSettings = { ...baseSettings, ...(data.betSettings || {}) };
+        const finalSettings = { ...baseSettings, ...(validatedData.betSettings || {}) };
 
         await db.user.create({
-            data: {
-                username: data.username,
-                name: data.name,
-                role: Role.PLAYER,
-                parentId: agentId,
-                
-                betSettings: finalSettings as unknown as Prisma.InputJsonValue, 
-            }
+        data: {
+            username: finalUsername,
+            name: validatedData.name,
+            phoneNumber: finalPhone,
+            role: Role.PLAYER,
+            parentId: agentId,
+            betSettings: finalSettings as unknown as Prisma.InputJsonValue,
+        }
         });
 
         revalidatePath("/agent/players");
-        return { success: true, message: "Tạo người chơi thành công" };
+        return { success: true, message: `Đã thêm khách: ${validatedData.name}` };
     } catch (error) { 
+        // FIX LỖI 3: Sử dụng biến error (log ra console)
         console.error("Create Player Error:", error);
-        return { error: "Lỗi hệ thống khi tạo tài khoản" }; 
+        return { error: "Lỗi hệ thống khi tạo khách" }; 
     }
 }
 
+// --- CẬP NHẬT PLAYER ---
 export async function updatePlayer(id: string, data: UpdatePlayerInput) {
     try {
-        const agentId = await checkAgent();
-
-        const player = await db.user.findFirst({
-            where: { id, parentId: agentId }
-        });
+        // Validate dữ liệu update (partial)
+        const validatedData = PlayerSchema.partial().parse(data);
         
-        if (!player) return { error: "Không tìm thấy người chơi hoặc không thuộc quyền quản lý" };
+        const agentId = await checkAgent();
+        const player = await db.user.findFirst({ where: { id, parentId: agentId } });
+        if (!player) return { error: "Không tìm thấy khách" };
 
-        // Chuẩn bị dữ liệu update
         const updateData: Prisma.UserUpdateInput = { 
-            name: data.name,
-            banned: data.banned,
+            name: validatedData.name,
+            banned: validatedData.banned,
+            phoneNumber: validatedData.phoneNumber || null
         };
 
-        if (data.betSettings) {
-            updateData.betSettings = data.betSettings as unknown as Prisma.InputJsonValue;
+        if (validatedData.phoneNumber && validatedData.phoneNumber.trim() !== "") {
+            updateData.username = validatedData.phoneNumber;
         }
 
-        // Thực hiện Update
-        await db.user.update({
-            where: { id },
-            data: updateData
-        });
+        if (validatedData.betSettings) {
+            updateData.betSettings = validatedData.betSettings as unknown as Prisma.InputJsonValue;
+        }
 
+        await db.user.update({ where: { id }, data: updateData });
         revalidatePath("/agent/players");
         return { success: true, message: "Cập nhật thành công" };
     } catch (error) { 
         console.error("Update Player Error:", error);
-        return { error: "Lỗi hệ thống khi cập nhật" }; 
+        return { error: "Lỗi cập nhật thông tin" }; 
     }
 }
 
@@ -100,16 +126,15 @@ export async function updatePlayer(id: string, data: UpdatePlayerInput) {
 export async function deletePlayer(id: string) {
     try {
         const agentId = await checkAgent();
-        
-        // Security Check: Chỉ xóa được con của mình
         const count = await db.user.count({ where: { id, parentId: agentId } });
-        if (count === 0) return { error: "Không tìm thấy người chơi" };
-
-        await db.user.delete({ where: { id } });
+        if (count === 0) return { error: "Không tìm thấy khách hàng này" };
         
+        await db.user.delete({ where: { id } });
         revalidatePath("/agent/players");
-        return { success: true, message: "Đã xóa tài khoản" };
+        return { success: true, message: "Đã xóa khách hàng" };
     } catch (e) { 
-        return { error: "Lỗi khi xóa (Có thể do ràng buộc dữ liệu vé cược)" }; 
+        // FIX LỖI 4: Sử dụng biến e (log ra console)
+        console.error("Delete Player Error:", e);
+        return { error: "Lỗi khi xóa (Có thể do ràng buộc dữ liệu)" }; 
     }
 }
