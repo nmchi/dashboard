@@ -136,9 +136,9 @@ export function LoginForm() {
                                 : 'bg-yellow-50 border border-yellow-200 text-yellow-700'
                         }`}>
                             {isBannedError ? (
-                                <Ban className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                                <Ban className="w-5 h-5 shrink-0 mt-0.5" />
                             ) : (
-                                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                             )}
                             <div>
                                 <p className="font-medium">{error}</p>
