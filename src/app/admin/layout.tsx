@@ -10,21 +10,19 @@ export default async function AdminRouteLayout({ children }: { children: React.R
 
     if (!session) redirect("/");
 
-    // Ép kiểu role cho TypeScript yên tâm
     const user = {
         name: session.user.name || "User",
-        username: (session.user as any).username || session.user.email,
-        role: (session.user as any).role || "PLAYER",
+        username: (session.user as { username?: string }).username || session.user.email || "",
+        role: (session.user as { role?: string }).role || "PLAYER",
     };
 
-    // Logic chặn quyền (Nếu cần chặn cứng ở tầng Server)
     if (user.role !== "ADMIN") {
         return <div className="p-8 text-red-500">Bạn không có quyền truy cập khu vực Admin</div>
     }
 
     return (
         <DashboardLayout user={user}>
-        {children}
+            {children}
         </DashboardLayout>
     );
 }

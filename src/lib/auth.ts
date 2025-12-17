@@ -19,12 +19,16 @@ export const auth = betterAuth({
                 type: "string",
                 required: false,
             },
+            banned: {
+                type: "boolean",
+                required: false,
+            },
         },
     },
 
     emailAndPassword: {
-        enabled: true, // Bắt buộc phải true để kích hoạt tính năng đăng nhập bằng mật khẩu
-        requireEmailVerification: false, // Tắt tính năng xác thực email
+        enabled: true,
+        requireEmailVerification: false,
         password: {
             hash: async (password: string) => {
                 return await hash(password, 12);
@@ -36,7 +40,6 @@ export const auth = betterAuth({
                 }
 
                 const pwdString = typeof password === 'string' ? password : String(password);
-
                 return await compare(pwdString, storedHash);
             }
         },

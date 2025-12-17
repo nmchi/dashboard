@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { AlertCircle, Ban, Loader2 } from "lucide-react"
 import Link from "next/link"
 
 export function LoginForm() {
@@ -15,45 +16,86 @@ export function LoginForm() {
     const [username, setUsername] = useState("")
     const [password, setPassword] = useState("")
     const [error, setError] = useState("")
+    const [isBannedError, setIsBannedError] = useState(false)
 
     const handleLogin = async () => {
+        if (!username || !password) {
+            setError("Vui lòng nhập đầy đủ thông tin")
+            return
+        }
+
         setLoading(true)
         setError("")
+        setIsBannedError(false)
 
-        await signIn.username({ 
-            username: username,
-            password: password,
-        }, {
-            onRequest: () => setLoading(true),
-            
-            // --- CẬP NHẬT LOGIC: Chuyển hướng theo Role ---
-            onSuccess: async (ctx) => {
-                const role = ctx.data?.user?.role; // Lấy role từ phản hồi đăng nhập
+        try {
+            // BƯỚC 1: Kiểm tra banned TRƯỚC khi login
+            const checkResponse = await fetch("/api/check-banned", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username }),
+            })
 
-                if (role === "ADMIN") {
-                    router.push("/admin");
-                } else if (role === "AGENT") {
-                    router.push("/agent");
-                } else if (role === "PLAYER") {
-                    // Nếu muốn chặn Player đăng nhập
-                    setError("Tài khoản người chơi không có quyền truy cập.");
-                    setLoading(false);
-                    return; 
-                } else {
-                    router.push("/");
-                }
-                
-                router.refresh();
-            },
-            
-            onError: (ctx) => {
-                setError(ctx.error.message || "Đăng nhập thất bại")
+            const checkData = await checkResponse.json()
+
+            if (checkData.banned) {
+                setError("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.")
+                setIsBannedError(true)
                 setLoading(false)
+                return
             }
-        })
+
+            // BƯỚC 2: Tiến hành đăng nhập nếu không bị banned
+            await signIn.username({ 
+                username: username,
+                password: password,
+            }, {
+                onSuccess: async (ctx) => {
+                    const user = ctx.data?.user as { role?: string; banned?: boolean } | undefined
+                    const role = user?.role
+
+                    // Double check banned (phòng trường hợp race condition)
+                    if (user?.banned) {
+                        setError("Tài khoản của bạn đã bị khóa")
+                        setIsBannedError(true)
+                        setLoading(false)
+                        return
+                    }
+
+                    if (role === "ADMIN") {
+                        router.push("/admin")
+                    } else if (role === "AGENT") {
+                        router.push("/agent")
+                    } else if (role === "PLAYER") {
+                        setError("Tài khoản người chơi không có quyền truy cập.")
+                        setLoading(false)
+                        return
+                    } else {
+                        router.push("/")
+                    }
+                    
+                    router.refresh()
+                },
+                
+                onError: (ctx) => {
+                    const errorMessage = ctx.error.message || "Đăng nhập thất bại"
+                    setError(errorMessage)
+                    setLoading(false)
+                }
+            })
+        } catch (err) {
+            console.error("Login error:", err)
+            setError("Có lỗi xảy ra. Vui lòng thử lại.")
+            setLoading(false)
+        }
     }
 
-    // ... (Phần return JSX giữ nguyên)
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !loading) {
+            handleLogin()
+        }
+    }
+
     return (
         <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
             <Card className="w-full max-w-[400px] shadow-lg">
@@ -68,7 +110,9 @@ export function LoginForm() {
                             id="username" 
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
+                            onKeyDown={handleKeyDown}
                             disabled={loading}
+                            placeholder="Nhập tên đăng nhập"
                         />
                     </div>
                     <div className="space-y-2">
@@ -78,14 +122,48 @@ export function LoginForm() {
                             type="password" 
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
+                            onKeyDown={handleKeyDown}
                             disabled={loading}
+                            placeholder="Nhập mật khẩu"
                         />
                     </div>
                     
-                    {error && <div className="text-sm text-red-500 text-center font-medium">{error}</div>}
+                    {/* Error Message */}
+                    {error && (
+                        <div className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
+                            isBannedError 
+                                ? 'bg-red-50 border border-red-200 text-red-700' 
+                                : 'bg-yellow-50 border border-yellow-200 text-yellow-700'
+                        }`}>
+                            {isBannedError ? (
+                                <Ban className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                            ) : (
+                                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                            )}
+                            <div>
+                                <p className="font-medium">{error}</p>
+                                {isBannedError && (
+                                    <p className="text-xs mt-1 opacity-80">
+                                        Liên hệ: 0123 456 789 hoặc support@xsnhanh.com
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
-                    <Button className="w-full" onClick={handleLogin} disabled={loading}>
-                        {loading ? "Đang xác thực..." : "Đăng nhập"}
+                    <Button 
+                        className="w-full" 
+                        onClick={handleLogin} 
+                        disabled={loading || !username || !password}
+                    >
+                        {loading ? (
+                            <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Đang xác thực...
+                            </>
+                        ) : (
+                            "Đăng nhập"
+                        )}
                     </Button>
                 </CardContent>
                 <CardFooter className="flex flex-col space-y-2 border-t pt-4 bg-slate-50/50">
