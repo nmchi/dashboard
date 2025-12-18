@@ -12,17 +12,12 @@ model User {
   username           String            @unique
   name               String?
   email              String?           @unique
-  emailVerified      Boolean?
   image              String?
   phoneNumber        String?
   password           String?
   role               Role              @default(AGENT)
   banned             Boolean           @default(false)
   mustChangePassword Boolean           @default(true)
-
-  twoFactorEnabled   Boolean           @default(false)
-  twoFactorSecret    String?
-  backupCodes        String[]
   expiresAt          DateTime?
 
   parentId           String?
