@@ -5,7 +5,9 @@ import {
     Map,
     List,
     Settings,
-    LucideIcon
+    LucideIcon,
+    FileText,
+    History
 } from "lucide-react";
 
 export type NavItem = {
@@ -21,12 +23,6 @@ export const sidebarLinks: NavItem[] = [
         href: "/admin",
         icon: LayoutDashboard,
         roles: ["ADMIN"],
-    },
-    {
-        title: "Tổng quan AGENT",
-        href: "/agent",
-        icon: LayoutDashboard,
-        roles: ["AGENT"],
     },
     {
         title: "Quản lý Đại lý",
@@ -58,10 +54,28 @@ export const sidebarLinks: NavItem[] = [
         icon: List,
         roles: ["ADMIN"],
     },
+        {
+        title: "Tổng quan AGENT",
+        href: "/agent",
+        icon: LayoutDashboard,
+        roles: ["AGENT"],
+    },
     {
         title: "Quản lý Người chơi",
         href: "/agent/players",
         icon: Users,
+        roles: ["AGENT"],
+    },
+    {
+        title: "Máy Quét Tin",
+        href: "/agent/parser",
+        icon: FileText,
+        roles: ["AGENT"],
+    },
+    {
+        title: "Lịch Sử Tin",
+        href: "/agent/tickets",
+        icon: History,
         roles: ["AGENT"],
     },
     {

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation"; // <--- 1. Thêm useRouter
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
@@ -25,6 +25,7 @@ export function Sidebar({ userRole }: SidebarProps) {
             fetchOptions: {
                 onSuccess: () => {
                     router.push("/");
+                    router.refresh();
                 },
             },
         });
@@ -35,11 +36,10 @@ export function Sidebar({ userRole }: SidebarProps) {
             <div className="h-16 flex items-center px-6 border-b border-slate-100">
                 <span className="text-2xl font-bold text-blue-600">XSNHANH</span>
                 <span className="ml-2 text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 font-medium">
-                {userRole}
+                    {userRole}
                 </span>
             </div>
 
-            {/* Navigation Links */}
             <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                 {filteredLinks.map((link) => {
                     const Icon = link.icon;
@@ -51,7 +51,6 @@ export function Sidebar({ userRole }: SidebarProps) {
                     }
 
                     let isActive = false;
-
                     if (finalHref === "/admin" || finalHref === "/agent") {
                         isActive = pathname === finalHref;
                     } else {
@@ -63,10 +62,10 @@ export function Sidebar({ userRole }: SidebarProps) {
                             <Button
                                 variant="ghost"
                                 className={cn(
-                                "w-full justify-start gap-3 mb-1",
-                                isActive 
-                                    ? "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800" 
-                                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                                    "w-full justify-start gap-3 mb-1",
+                                    isActive 
+                                        ? "bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800" 
+                                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                                 )}
                             >
                                 <Icon className="h-5 w-5" />
@@ -77,7 +76,6 @@ export function Sidebar({ userRole }: SidebarProps) {
                 })}
             </nav>
 
-            {/* Footer Area (Logout) */}
             <div className="p-4 border-t border-slate-100">
                 <Button 
                     variant="outline" 

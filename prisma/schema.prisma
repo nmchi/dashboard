@@ -122,7 +122,7 @@ model Order {
   status        OrderStatus         @default(PENDING)
   type          OrderType
   userId        String?
-  createdUserId String?             @unique
+  createdUserId String?
   bankCode      String?
   paymentDate   DateTime?
   createdAt     DateTime            @default(now())
@@ -213,6 +213,8 @@ model Ticket {
   bets        Bet[]
 
   @@map("ticket")
+  @@index([status])
+  @@index([userId])
 }
 
 model Bet {
