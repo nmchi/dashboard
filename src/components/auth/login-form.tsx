@@ -29,7 +29,7 @@ export function LoginForm() {
         setIsBannedError(false)
 
         try {
-            // BƯỚC 1: Kiểm tra banned TRƯỚC khi login
+            // Check banned trước
             const checkResponse = await fetch("/api/check-banned", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -45,22 +45,22 @@ export function LoginForm() {
                 return
             }
 
-            // BƯỚC 2: Tiến hành đăng nhập nếu không bị banned
+            // Login - Better Auth sẽ tự động set cookie cache
             await signIn.username({ 
                 username: username,
                 password: password,
             }, {
                 onSuccess: async (ctx) => {
                     const user = ctx.data?.user as { role?: string; banned?: boolean } | undefined
-                    const role = user?.role
 
-                    // Double check banned (phòng trường hợp race condition)
                     if (user?.banned) {
                         setError("Tài khoản của bạn đã bị khóa")
                         setIsBannedError(true)
                         setLoading(false)
                         return
                     }
+
+                    const role = user?.role
 
                     if (role === "ADMIN") {
                         router.push("/admin")
@@ -78,8 +78,7 @@ export function LoginForm() {
                 },
                 
                 onError: (ctx) => {
-                    const errorMessage = ctx.error.message || "Đăng nhập thất bại"
-                    setError(errorMessage)
+                    setError(ctx.error.message || "Đăng nhập thất bại")
                     setLoading(false)
                 }
             })
@@ -128,7 +127,6 @@ export function LoginForm() {
                         />
                     </div>
                     
-                    {/* Error Message */}
                     {error && (
                         <div className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
                             isBannedError 
