@@ -2,8 +2,7 @@
 
 import { db } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { requireAdmin } from "@/lib/auth-guard";
 import { z } from "zod";
 import { Region } from "@prisma/client";
 
@@ -19,37 +18,34 @@ const ProvinceSchema = z.object({
     schedules: z.array(ScheduleInputSchema).optional(),
 });
 
-async function checkAdmin() {
-    const session = await auth.api.getSession({ headers: await headers() });
-    const user = session?.user as { role?: string } | undefined;
-    if (!session || user?.role !== "ADMIN") throw new Error("Không có quyền");
-}
-
 export async function createProvince(data: z.infer<typeof ProvinceSchema>) {
     try {
-        await checkAdmin();
+        await requireAdmin();
         const { schedules, ...provinceData } = data;
 
         await db.lotteryProvince.create({
-        data: {
-            ...provinceData,
-            schedules: {
-                create: schedules?.map(s => ({
-                    dayOfWeek: s.dayOfWeek,
-                    ordering: s.ordering, // <--- Lưu ordering
-                    region: provinceData.region
-                }))
+            data: {
+                ...provinceData,
+                schedules: {
+                    create: schedules?.map(s => ({
+                        dayOfWeek: s.dayOfWeek,
+                        ordering: s.ordering,
+                        region: provinceData.region
+                    }))
+                }
             }
-        }
         });
         revalidatePath("/admin/provinces");
         return { success: true };
-    } catch (error) { return { error: "Lỗi tạo đài" }; }
+    } catch (error) { 
+        console.error("Create province error:", error);
+        return { error: "Lỗi tạo đài" }; 
+    }
 }
 
 export async function updateProvince(id: string, data: z.infer<typeof ProvinceSchema>) {
     try {
-        await checkAdmin();
+        await requireAdmin();
         const { schedules, ...provinceData } = data;
 
         await db.$transaction(async (tx) => {
@@ -66,7 +62,7 @@ export async function updateProvince(id: string, data: z.infer<typeof ProvinceSc
                         data: schedules.map(s => ({
                             provinceId: id,
                             dayOfWeek: s.dayOfWeek,
-                            ordering: s.ordering, // <--- Lưu ordering
+                            ordering: s.ordering,
                             region: provinceData.region
                         }))
                     });
@@ -76,14 +72,20 @@ export async function updateProvince(id: string, data: z.infer<typeof ProvinceSc
 
         revalidatePath("/admin/provinces");
         return { success: true };
-    } catch (error) { return { error: "Lỗi cập nhật" }; }
+    } catch (error) { 
+        console.error("Update province error:", error);
+        return { error: "Lỗi cập nhật" }; 
+    }
 }
 
 export async function deleteProvince(id: string) {
     try {
-        await checkAdmin();
+        await requireAdmin();
         await db.lotteryProvince.delete({ where: { id } });
         revalidatePath("/admin/provinces");
         return { success: true };
-    } catch (error) { return { error: "Lỗi xóa đài" }; }
+    } catch (error) { 
+        console.error("Delete province error:", error);
+        return { error: "Lỗi xóa đài" }; 
+    }
 }

@@ -138,6 +138,7 @@ model LotteryProvince {
   
   schedules LotterySchedule[]
   bets      Bet[]
+  results   LotteryResult[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -171,6 +172,27 @@ model LotterySchedule {
   @@map("lottery_schedule")
 }
 
+model LotteryResult {
+  id          String          @id @default(cuid())
+  
+  provinceId  String
+  province    LotteryProvince @relation(fields: [provinceId], references: [id])
+  
+  drawDate    DateTime        @db.Date // Ngày xổ
+  region      Region
+  
+  // Kết quả theo giải - JSON format
+  // { "G.ĐB": ["123456"], "G.1": ["12345"], "G.8": ["12", "34"] }
+  prizes      Json
+  
+  createdAt   DateTime        @default(now())
+
+  @@unique([provinceId, drawDate])
+  @@index([drawDate])
+  @@index([region, drawDate])
+  @@map("lottery_result")
+}
+
 enum Region {
   MB
   MT
@@ -184,6 +206,7 @@ model Ticket {
   
   rawContent  String       @db.Text
   region      Region
+  drawDate    DateTime     @db.Date
   totalAmount Decimal      @default(0) @db.Decimal(12, 0)
   status      TicketStatus @default(PENDING)
   errorMsg    String?
@@ -202,8 +225,6 @@ model Bet {
   ticketId    String
   ticket      Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   
-  drawDate    DateTime        // Ngày xổ
-  
   provinceId  String
   province    LotteryProvince @relation(fields: [provinceId], references: [id])
   
@@ -221,7 +242,6 @@ model Bet {
 
   createdAt   DateTime        @default(now())
 
-  @@index([drawDate])
   @@index([provinceId])
   @@index([ticketId])
   @@index([isWin])

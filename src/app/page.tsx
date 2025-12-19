@@ -2,19 +2,15 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/auth/login-form";
+import { getCurrentUser } from "@/lib/auth-session";
 
 export default async function HomePage() {
-    const session = await auth.api.getSession({
-        headers: await headers()
-    });
+    const user = await getCurrentUser();
 
-    if (session) {
-        const user = session.user as { role?: string }; 
-        const role = user.role;
-
-        if (role === "ADMIN") {
+    if (user) {
+        if (user.role === "ADMIN") {
             redirect("/admin");
-        } else if (role === "AGENT") {
+        } else if (user.role === "AGENT") {
             redirect("/agent"); 
         }
     }
