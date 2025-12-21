@@ -5,6 +5,12 @@ import { useSession } from "@/lib/auth-client";
 import { TicketStatus, Region } from "@prisma/client";
 import Link from "next/link";
 
+interface Player {
+    id: string;
+    username: string;
+    name: string | null;
+}
+
 interface Bet {
     id: string;
     numbers: string;
@@ -27,6 +33,7 @@ interface Ticket {
     errorMsg: string | null;
     createdAt: string;
     bets: Bet[];
+    user?: { username: string; name: string | null };
 }
 
 interface Pagination {
@@ -38,6 +45,11 @@ interface Pagination {
 
 export default function TicketListPage() {
     const { data: session } = useSession();
+    
+    // Players của Agent
+    const [players, setPlayers] = useState<Player[]>([]);
+    const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
+    
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [loading, setLoading] = useState(true);
     const [pagination, setPagination] = useState<Pagination>({
@@ -49,6 +61,26 @@ export default function TicketListPage() {
     const [statusFilter, setStatusFilter] = useState<TicketStatus | ''>('');
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
+    // Lấy danh sách Players của Agent
+    useEffect(() => {
+        const fetchPlayers = async () => {
+            if (!session?.user?.id) return;
+            
+            try {
+                const res = await fetch(`/api/users?parentId=${session.user.id}&role=PLAYER`);
+                const data = await res.json();
+                
+                if (data.success) {
+                    setPlayers(data.data);
+                }
+            } catch (error) {
+                console.error('Fetch players error:', error);
+            }
+        };
+        
+        fetchPlayers();
+    }, [session?.user?.id]);
+
     const fetchTickets = useCallback(async () => {
         if (!session?.user?.id) return;
         
@@ -56,10 +88,17 @@ export default function TicketListPage() {
         
         try {
             const params = new URLSearchParams({
-                userId: session.user.id,
                 page: pagination.page.toString(),
                 limit: pagination.limit.toString(),
             });
+            
+            // Nếu chọn player cụ thể
+            if (selectedPlayerId) {
+                params.append('userId', selectedPlayerId);
+            } else {
+                // Lấy tất cả tickets của các players thuộc agent
+                params.append('parentId', session.user.id);
+            }
             
             if (statusFilter) {
                 params.append('status', statusFilter);
@@ -77,7 +116,7 @@ export default function TicketListPage() {
         } finally {
             setLoading(false);
         }
-    }, [session?.user?.id, pagination.page, pagination.limit, statusFilter]);
+    }, [session?.user?.id, selectedPlayerId, pagination.page, pagination.limit, statusFilter]);
 
     useEffect(() => {
         fetchTickets();
@@ -127,22 +166,46 @@ export default function TicketListPage() {
     };
 
     return (
-        <div className="container mx-auto p-4 max-w-6xl">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold">Danh sách tin nhắn</h1>
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Lịch Sử Tin</h1>
+                    <p className="text-slate-500">Danh sách tin nhắn cược đã lưu</p>
+                </div>
                 <Link 
-                    href="/agent/tickets/test"
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                    href="/agent/parser"
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                    + Thêm tin nhắn
+                    + Nhập tin nhắn
                 </Link>
             </div>
             
             {/* Filters */}
-            <div className="bg-white rounded-lg shadow p-4 mb-6">
-                <div className="flex gap-4 items-center">
+            <div className="bg-white rounded-lg border shadow-sm p-4">
+                <div className="flex flex-wrap gap-4 items-end">
+                    {/* Lọc theo Player */}
                     <div>
-                        <label className="block text-sm text-gray-600 mb-1">Trạng thái</label>
+                        <label className="block text-sm text-slate-600 mb-1">Khách hàng</label>
+                        <select
+                            value={selectedPlayerId}
+                            onChange={(e) => {
+                                setSelectedPlayerId(e.target.value);
+                                setPagination(p => ({ ...p, page: 1 }));
+                            }}
+                            className="border rounded-lg px-3 py-2 min-w-[150px]"
+                        >
+                            <option value="">Tất cả khách</option>
+                            {players.map(player => (
+                                <option key={player.id} value={player.id}>
+                                    {player.name || player.username}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    
+                    {/* Lọc theo trạng thái */}
+                    <div>
+                        <label className="block text-sm text-slate-600 mb-1">Trạng thái</label>
                         <select
                             value={statusFilter}
                             onChange={(e) => {
@@ -158,26 +221,29 @@ export default function TicketListPage() {
                         </select>
                     </div>
                     
-                    <div className="ml-auto text-sm text-gray-600">
+                    <div className="ml-auto text-sm text-slate-600">
                         Tổng: <strong>{pagination.total}</strong> tin nhắn
                     </div>
                 </div>
             </div>
             
             {/* Ticket List */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
                 {loading ? (
-                    <div className="p-8 text-center text-gray-500">
+                    <div className="p-8 text-center text-slate-500">
                         Đang tải...
                     </div>
                 ) : tickets.length === 0 ? (
-                    <div className="p-8 text-center text-gray-500">
-                        Chưa có tin nhắn nào
+                    <div className="p-8 text-center text-slate-500">
+                        <p>Chưa có tin nhắn nào</p>
+                        <Link href="/agent/parser" className="text-blue-600 hover:underline mt-2 inline-block">
+                            Nhập tin nhắn đầu tiên →
+                        </Link>
                     </div>
                 ) : (
                     <div className="divide-y">
                         {tickets.map((ticket) => (
-                            <div key={ticket.id} className="p-4">
+                            <div key={ticket.id} className="p-4 hover:bg-slate-50">
                                 {/* Ticket Header */}
                                 <div 
                                     className="flex items-start gap-4 cursor-pointer"
@@ -186,25 +252,30 @@ export default function TicketListPage() {
                                     )}
                                 >
                                     <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                                             {getStatusBadge(ticket.status)}
-                                            <span className="text-sm text-gray-500">
+                                            {ticket.user && (
+                                                <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
+                                                    {ticket.user.name || ticket.user.username}
+                                                </span>
+                                            )}
+                                            <span className="text-sm text-slate-500">
                                                 {getRegionName(ticket.region)}
                                             </span>
-                                            <span className="text-sm text-gray-500">
-                                                {new Date(ticket.drawDate).toLocaleDateString('vi-VN')}
+                                            <span className="text-sm text-slate-500">
+                                                📅 {new Date(ticket.drawDate).toLocaleDateString('vi-VN')}
                                             </span>
                                         </div>
-                                        <p className="font-mono text-sm bg-gray-50 p-2 rounded">
+                                        <p className="font-mono text-sm bg-slate-100 p-2 rounded">
                                             {ticket.rawContent}
                                         </p>
-                                        <div className="mt-2 text-sm text-gray-600">
+                                        <div className="mt-2 text-sm text-slate-600">
                                             {ticket.bets.length} cược • 
-                                            Tiền thu: <strong>{formatMoney(ticket.totalAmount)}</strong>
+                                            Tiền thu: <strong className="text-blue-600">{formatMoney(ticket.totalAmount)}</strong>
                                         </div>
                                     </div>
                                     
-                                    <div className="text-right text-sm text-gray-500">
+                                    <div className="text-right text-sm text-slate-500">
                                         {formatDate(ticket.createdAt)}
                                         <div className="mt-1">
                                             {expandedId === ticket.id ? '▲' : '▼'}
@@ -216,7 +287,7 @@ export default function TicketListPage() {
                                 {expandedId === ticket.id && (
                                     <div className="mt-4 pt-4 border-t">
                                         <table className="w-full text-sm">
-                                            <thead className="bg-gray-50">
+                                            <thead className="bg-slate-50">
                                                 <tr>
                                                     <th className="px-2 py-1 text-left">Đài</th>
                                                     <th className="px-2 py-1 text-left">Số</th>
@@ -229,7 +300,7 @@ export default function TicketListPage() {
                                             </thead>
                                             <tbody>
                                                 {ticket.bets.map((bet) => (
-                                                    <tr key={bet.id} className="border-t">
+                                                    <tr key={bet.id} className={`border-t ${bet.isWin ? 'bg-green-50' : ''}`}>
                                                         <td className="px-2 py-1">{bet.province.name}</td>
                                                         <td className="px-2 py-1 font-mono">{bet.numbers}</td>
                                                         <td className="px-2 py-1">{bet.betType.name}</td>
@@ -239,7 +310,7 @@ export default function TicketListPage() {
                                                             {bet.isWin ? (
                                                                 <span className="text-green-600">✓ {bet.winCount}</span>
                                                             ) : (
-                                                                <span className="text-gray-400">-</span>
+                                                                <span className="text-slate-400">-</span>
                                                             )}
                                                         </td>
                                                         <td className={`px-2 py-1 text-right ${
@@ -250,7 +321,7 @@ export default function TicketListPage() {
                                                     </tr>
                                                 ))}
                                             </tbody>
-                                            <tfoot className="bg-gray-50 font-medium">
+                                            <tfoot className="bg-slate-50 font-medium">
                                                 <tr>
                                                     <td colSpan={4} className="px-2 py-2">Tổng</td>
                                                     <td className="px-2 py-2 text-right">
@@ -286,7 +357,7 @@ export default function TicketListPage() {
                         <button
                             onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
                             disabled={pagination.page <= 1}
-                            className="px-3 py-1 border rounded disabled:opacity-50"
+                            className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-slate-50"
                         >
                             ← Trước
                         </button>
@@ -298,7 +369,7 @@ export default function TicketListPage() {
                         <button
                             onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
                             disabled={pagination.page >= pagination.totalPages}
-                            className="px-3 py-1 border rounded disabled:opacity-50"
+                            className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-slate-50"
                         >
                             Sau →
                         </button>

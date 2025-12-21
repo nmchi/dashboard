@@ -142,11 +142,24 @@ CREATE TABLE "lottery_schedule" (
 );
 
 -- CreateTable
+CREATE TABLE "lottery_result" (
+    "id" TEXT NOT NULL,
+    "provinceId" TEXT NOT NULL,
+    "drawDate" DATE NOT NULL,
+    "region" "Region" NOT NULL,
+    "prizes" JSONB NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "lottery_result_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "ticket" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "rawContent" TEXT NOT NULL,
     "region" "Region" NOT NULL,
+    "drawDate" DATE NOT NULL,
     "totalAmount" DECIMAL(12,0) NOT NULL DEFAULT 0,
     "status" "TicketStatus" NOT NULL DEFAULT 'PENDING',
     "errorMsg" TEXT,
@@ -159,12 +172,11 @@ CREATE TABLE "ticket" (
 CREATE TABLE "bet" (
     "id" TEXT NOT NULL,
     "ticketId" TEXT NOT NULL,
-    "drawDate" TIMESTAMP(3) NOT NULL,
     "provinceId" TEXT NOT NULL,
     "typeId" TEXT NOT NULL,
     "numbers" TEXT NOT NULL,
+    "point" DECIMAL(5,1) NOT NULL,
     "amount" DECIMAL(12,0) NOT NULL,
-    "odds" DOUBLE PRECISION NOT NULL,
     "isWin" BOOLEAN NOT NULL DEFAULT false,
     "winCount" INTEGER NOT NULL DEFAULT 0,
     "winAmount" DECIMAL(12,0) NOT NULL DEFAULT 0,
@@ -204,13 +216,19 @@ CREATE UNIQUE INDEX "Order_code_key" ON "Order"("code");
 CREATE UNIQUE INDEX "lottery_schedule_dayOfWeek_provinceId_key" ON "lottery_schedule"("dayOfWeek", "provinceId");
 
 -- CreateIndex
+CREATE INDEX "lottery_result_drawDate_idx" ON "lottery_result"("drawDate");
+
+-- CreateIndex
+CREATE INDEX "lottery_result_region_drawDate_idx" ON "lottery_result"("region", "drawDate");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "lottery_result_provinceId_drawDate_key" ON "lottery_result"("provinceId", "drawDate");
+
+-- CreateIndex
 CREATE INDEX "ticket_status_idx" ON "ticket"("status");
 
 -- CreateIndex
 CREATE INDEX "ticket_userId_idx" ON "ticket"("userId");
-
--- CreateIndex
-CREATE INDEX "bet_drawDate_idx" ON "bet"("drawDate");
 
 -- CreateIndex
 CREATE INDEX "bet_provinceId_idx" ON "bet"("provinceId");
@@ -238,6 +256,9 @@ ALTER TABLE "Order" ADD CONSTRAINT "Order_packageId_fkey" FOREIGN KEY ("packageI
 
 -- AddForeignKey
 ALTER TABLE "lottery_schedule" ADD CONSTRAINT "lottery_schedule_provinceId_fkey" FOREIGN KEY ("provinceId") REFERENCES "lottery_province"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "lottery_result" ADD CONSTRAINT "lottery_result_provinceId_fkey" FOREIGN KEY ("provinceId") REFERENCES "lottery_province"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ticket" ADD CONSTRAINT "ticket_userId_fkey" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
