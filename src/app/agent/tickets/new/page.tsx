@@ -5,6 +5,12 @@ import { useSession } from "@/lib/auth-client";
 import { TicketStatus, Region } from "@prisma/client";
 import Link from "next/link";
 
+interface Player {
+    id: string;
+    username: string;
+    name: string | null;
+}
+
 interface Bet {
     id: string;
     numbers: string;
@@ -27,6 +33,7 @@ interface Ticket {
     errorMsg: string | null;
     createdAt: string;
     bets: Bet[];
+    user?: { username: string; name: string | null };
 }
 
 interface Pagination {
@@ -38,6 +45,11 @@ interface Pagination {
 
 export default function TicketListPage() {
     const { data: session } = useSession();
+    
+    // Players của Agent
+    const [players, setPlayers] = useState<Player[]>([]);
+    const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
+    
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [loading, setLoading] = useState(true);
     const [pagination, setPagination] = useState<Pagination>({
@@ -49,6 +61,26 @@ export default function TicketListPage() {
     const [statusFilter, setStatusFilter] = useState<TicketStatus | ''>('');
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
+    // Lấy danh sách Players của Agent
+    useEffect(() => {
+        const fetchPlayers = async () => {
+            if (!session?.user?.id) return;
+            
+            try {
+                const res = await fetch(`/api/users?parentId=${session.user.id}&role=PLAYER`);
+                const data = await res.json();
+                
+                if (data.success) {
+                    setPlayers(data.data);
+                }
+            } catch (error) {
+                console.error('Fetch players error:', error);
+            }
+        };
+        
+        fetchPlayers();
+    }, [session?.user?.id]);
+
     const fetchTickets = useCallback(async () => {
         if (!session?.user?.id) return;
         
@@ -56,10 +88,17 @@ export default function TicketListPage() {
         
         try {
             const params = new URLSearchParams({
-                userId: session.user.id,
                 page: pagination.page.toString(),
                 limit: pagination.limit.toString(),
             });
+            
+            // Nếu chọn player cụ thể
+            if (selectedPlayerId) {
+                params.append('userId', selectedPlayerId);
+            } else {
+                // Lấy tất cả tickets của các players thuộc agent
+                params.append('parentId', session.user.id);
+            }
             
             if (statusFilter) {
                 params.append('status', statusFilter);
@@ -77,7 +116,7 @@ export default function TicketListPage() {
         } finally {
             setLoading(false);
         }
-    }, [session?.user?.id, pagination.page, pagination.limit, statusFilter]);
+    }, [session?.user?.id, selectedPlayerId, pagination.page, pagination.limit, statusFilter]);
 
     useEffect(() => {
         fetchTickets();
@@ -131,16 +170,37 @@ export default function TicketListPage() {
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Danh sách tin nhắn</h1>
                 <Link 
-                    href="/agent/tickets/test"
+                    href="/agent/tickets/new"
                     className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
                 >
-                    + Thêm tin nhắn
+                    + Nhập tin nhắn
                 </Link>
             </div>
             
             {/* Filters */}
             <div className="bg-white rounded-lg shadow p-4 mb-6">
-                <div className="flex gap-4 items-center">
+                <div className="flex flex-wrap gap-4 items-end">
+                    {/* Lọc theo Player */}
+                    <div>
+                        <label className="block text-sm text-gray-600 mb-1">Khách hàng</label>
+                        <select
+                            value={selectedPlayerId}
+                            onChange={(e) => {
+                                setSelectedPlayerId(e.target.value);
+                                setPagination(p => ({ ...p, page: 1 }));
+                            }}
+                            className="border rounded-lg px-3 py-2"
+                        >
+                            <option value="">Tất cả khách</option>
+                            {players.map(player => (
+                                <option key={player.id} value={player.id}>
+                                    {player.name || player.username}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    
+                    {/* Lọc theo trạng thái */}
                     <div>
                         <label className="block text-sm text-gray-600 mb-1">Trạng thái</label>
                         <select
@@ -188,6 +248,11 @@ export default function TicketListPage() {
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-1">
                                             {getStatusBadge(ticket.status)}
+                                            {ticket.user && (
+                                                <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
+                                                    {ticket.user.name || ticket.user.username}
+                                                </span>
+                                            )}
                                             <span className="text-sm text-gray-500">
                                                 {getRegionName(ticket.region)}
                                             </span>

@@ -232,8 +232,8 @@ model Bet {
   betType     BetType         @relation(fields: [typeId], references: [id])
   
   numbers     String          // "10" hoặc "10-20"
+  point       Decimal         @db.Decimal(5, 1)
   amount      Decimal         @db.Decimal(12, 0)
-  odds        Float           // Tỷ lệ ăn lúc cược
   
   // Kết quả
   isWin       Boolean         @default(false)
