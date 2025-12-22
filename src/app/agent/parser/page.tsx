@@ -221,18 +221,23 @@ export default function ParserPage() {
     };
 
     /**
-     * Format tiền theo dạng ngắn gọn: 160000 → 160(n), -160000 → -160(n)
+     * Format tiền theo dạng ngắn gọn: 160000 → 160.0, 1000000 → 1,000.0
+     * Luôn hiển thị 1 chữ số thập phân, thêm dấu "," phân cách hàng nghìn
      */
     const formatMoney = (amount: number) => {
         if (amount === 0) return '0';
         const isNegative = amount < 0;
         const absAmount = Math.abs(amount);
         const thousands = absAmount / 1000;
-        // Nếu là số nguyên thì bỏ phần thập phân
-        if (Number.isInteger(thousands)) {
-            return `${isNegative ? '-' : ''}${thousands}(n)`;
-        }
-        return `${isNegative ? '-' : ''}${thousands.toFixed(1)}(n)`;
+        
+        // Tách phần nguyên và thập phân
+        const fixed = thousands.toFixed(1);
+        const [intPart, decPart] = fixed.split('.');
+        
+        // Thêm dấu "," phân cách hàng nghìn cho phần nguyên
+        const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        
+        return `${isNegative ? '-' : ''}${formattedInt}.${decPart}`;
     };
 
     const selectedPlayer = players.find(p => p.id === selectedPlayerId);
