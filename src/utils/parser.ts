@@ -1,5 +1,5 @@
 import { LotteryProvince, BetType, Region } from "@prisma/client";
-import { ParsedBet, ParsedMessage, BetSettings, DEFAULT_BET_SETTINGS, PriceSettings } from "@/types/messages";
+import { ParsedBet, ParsedMessage, BetSettings, DEFAULT_BET_SETTINGS } from "@/types/messages";
 import { getDayOfWeek } from "./date";
 import { findProvinceByAlias, getPriorityProvinces } from "./province";
 import { normalizeMessage } from "./normalizer";
@@ -216,13 +216,56 @@ function createBets(
         return bets;
     }
     
-    if (betTypeName === 'Bao đảo' || betTypeName === 'Xỉu chủ đảo') {
-        // Tạo hoán vị cho mỗi số
+    if (betTypeName === 'Xỉu chủ đảo') {
+        // Xỉu chủ đảo: hoán vị + tách đầu/đuôi
+        for (const num of numbers) {
+            if (num.length === 3) {
+                const permutations = generatePermutations(num);
+                for (const perm of permutations) {
+                    const betDau = createSingleBet(perm, 'Xỉu chủ đảo đầu', point, provinceNames, context);
+                    const betDuoi = createSingleBet(perm, 'Xỉu chủ đảo đuôi', point, provinceNames, context);
+                    bets.push(betDau, betDuoi);
+                }
+            }
+        }
+        return bets;
+    }
+    
+    if (betTypeName === 'Xỉu chủ đảo đầu') {
+        // Xỉu chủ đảo đầu: hoán vị, chỉ dò đầu
+        for (const num of numbers) {
+            if (num.length === 3) {
+                const permutations = generatePermutations(num);
+                for (const perm of permutations) {
+                    const bet = createSingleBet(perm, 'Xỉu chủ đảo đầu', point, provinceNames, context);
+                    bets.push(bet);
+                }
+            }
+        }
+        return bets;
+    }
+    
+    if (betTypeName === 'Xỉu chủ đảo đuôi') {
+        // Xỉu chủ đảo đuôi: hoán vị, chỉ dò đuôi
+        for (const num of numbers) {
+            if (num.length === 3) {
+                const permutations = generatePermutations(num);
+                for (const perm of permutations) {
+                    const bet = createSingleBet(perm, 'Xỉu chủ đảo đuôi', point, provinceNames, context);
+                    bets.push(bet);
+                }
+            }
+        }
+        return bets;
+    }
+    
+    if (betTypeName === 'Bao đảo') {
+        // Bao đảo: hoán vị, tính như Bao lô
         for (const num of numbers) {
             if (num.length >= 2 && num.length <= 4) {
                 const permutations = generatePermutations(num);
                 for (const perm of permutations) {
-                    const bet = createSingleBet(perm, betTypeName, point, provinceNames, context);
+                    const bet = createSingleBet(perm, 'Bao lô', point, provinceNames, context);
                     bets.push(bet);
                 }
             }
@@ -318,7 +361,6 @@ function calculateAmount(
         }
             
         case 'Bao lô':
-        case 'Bao đảo':
             if (numberOfDigits === 2) {
                 bodyprice = (point * DEFAULT_PRICE * 18) * provinceCount;
                 return Math.round(bodyprice * (prices.price2lo / 100));
