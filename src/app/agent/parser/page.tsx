@@ -189,21 +189,41 @@ export default function ParserPage() {
                 else if (numDigits === 3) category = "3c";
                 else if (numDigits === 4) category = "4c";
             } else if (bet.type.includes('Xỉu chủ')) {
+                // Xỉu chủ: chỉ dò 3 số cuối của giải 7 và giải ĐB
+                // Không nhân số lô như bao lô
                 category = "3c";
-                // Xỉu chủ: nhân với số lô 3 số
-                loMultiplier = getLoCount(3, region);
+                loMultiplier = 1;
             } else if (bet.type === 'Đá' || bet.type === 'Đá thẳng') {
                 category = "dat";
-                // Đá thẳng: nhân với số lô
-                loMultiplier = getLoCount(2, region);
+                // Đá thẳng: nhân với số lô × 2 (vì mỗi cặp có 2 số)
+                loMultiplier = getLoCount(2, region) * 2;
             } else if (bet.type === 'Đá xiên') {
                 category = "dax";
-                // Đá xiên: nhân với số lô
-                loMultiplier = getLoCount(2, region);
+                // Đá xiên: công thức riêng, xử lý bên dưới
+                loMultiplier = -1; // Flag để xử lý riêng
             }
             
-            // Tính XÁC = point × 1000 × số đài × số numbers × số lô
-            const xac = bet.point * 1000 * provinceCount * numCount * loMultiplier;
+            // Tính XÁC
+            let xac: number;
+            
+            if (bet.type === 'Đá xiên') {
+                // Đá xiên: công thức riêng
+                // XÁC = point × 1000 × 72 × combinationFactor × stationMultiplier
+                const combinationFactor = numCount === 2 ? 1 : (numCount * (numCount - 1)) / 2;
+                let stationMultiplier = 1;
+                if (provinceCount === 3) stationMultiplier = 3;
+                else if (provinceCount >= 4) stationMultiplier = 6;
+                
+                xac = bet.point * 1000 * 72 * combinationFactor * stationMultiplier;
+            } else if (bet.type === 'Đá' || bet.type === 'Đá thẳng') {
+                // Đá thẳng: dùng combinationFactor (số cặp) thay vì numCount
+                // XÁC = point × 1000 × provinceCount × combinationFactor × 36
+                const combinationFactor = numCount === 2 ? 1 : (numCount * (numCount - 1)) / 2;
+                xac = bet.point * 1000 * provinceCount * combinationFactor * loMultiplier;
+            } else {
+                // Công thức chung: point × 1000 × số đài × số numbers × số lô
+                xac = bet.point * 1000 * provinceCount * numCount * loMultiplier;
+            }
             
             // Cộng dồn
             totals[category].xac += xac;
