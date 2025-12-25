@@ -40,13 +40,12 @@ export async function POST(req: NextRequest) {
         
         // 2. Lấy danh sách đài và kiểu cược (CHỈ LẤY THEO MIỀN ĐƯỢC CHỌN)
         const date = drawDate ? new Date(drawDate) : new Date();
-        const [provinces, betTypes, allProvincesInRegion] = await Promise.all([
-            getProvincesByDay(region, date),
+        const [todayProvinces, betTypes] = await Promise.all([
+            getProvincesByDay(region, date),  // Đài quay hôm đó, đã sort theo ordering
             db.betType.findMany(),
-            db.lotteryProvince.findMany({ where: { region } }), // Chỉ lấy đài của miền này
         ]);
         
-        if (provinces.length === 0) {
+        if (todayProvinces.length === 0) {
             return NextResponse.json({
                 success: false,
                 error: `Không có đài nào mở xổ ngày ${date.toLocaleDateString('vi-VN')} (${getRegionName(region)})`,
@@ -56,7 +55,7 @@ export async function POST(req: NextRequest) {
         // 3. Parse tin nhắn (chỉ với đài của miền được chọn)
         const parsedResult = parseMessage(
             message,
-            allProvincesInRegion,
+            todayProvinces,
             betTypes,
             betSettings,
             region,
@@ -66,9 +65,9 @@ export async function POST(req: NextRequest) {
         // 4. Chuẩn hóa tin nhắn để hiển thị
         const normalizedMessage = normalizeMessage(
             message,
-            allProvincesInRegion,
+            todayProvinces,
             betTypes,
-            provinces
+            todayProvinces
         );
         
         // 5. Lấy kết quả xổ số (CHỈ LẤY THEO MIỀN ĐƯỢC CHỌN)

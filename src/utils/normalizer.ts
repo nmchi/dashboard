@@ -52,6 +52,46 @@ export function normalizeMessage(
         }
     }
     
+    // ========================================
+    // Bước 4.5: Tách đài có dấu phân cách (tn-bt, tn.bt, tn/bt → tn bt)
+    // PHẢI xử lý TRƯỚC bước tách số để tránh conflict
+    // ========================================
+    const provinceAliases = provinces.flatMap(p => 
+        p.aliases.split(',').map(a => a.trim().toLowerCase())
+    ).sort((a, b) => b.length - a.length); // Dài trước để match chính xác
+    
+    // Tìm và thay thế pattern: đài-đài, đài.đài, đài/đài
+    // Ví dụ: tn-bt → tn bt, vl.tg → vl tg
+    for (const alias1 of provinceAliases) {
+        for (const alias2 of provinceAliases) {
+            // Pattern: alias1[-./]alias2
+            const patterns = [
+                new RegExp(`\\b${alias1}[-]${alias2}\\b`, 'gi'),
+                new RegExp(`\\b${alias1}[.]${alias2}\\b`, 'gi'),
+                new RegExp(`\\b${alias1}[/]${alias2}\\b`, 'gi'),
+            ];
+            
+            for (const regex of patterns) {
+                normalized = normalized.replace(regex, `${alias1} ${alias2}`);
+            }
+        }
+    }
+    
+    // Cách tiếp cận đơn giản hơn: Tách chữ-chữ thành chữ chữ
+    // Chỉ áp dụng khi cả 2 bên đều là chữ (không phải số)
+    normalized = normalized.replace(/([a-z])-([a-z])/gi, '$1 $2');
+    normalized = normalized.replace(/([a-z])\.([a-z])/gi, '$1 $2');
+    normalized = normalized.replace(/([a-z])\/([a-z])/gi, '$1 $2');
+    
+    // Lặp lại để xử lý chuỗi dài như tn-bt-ag
+    let prevNormalized = '';
+    while (prevNormalized !== normalized) {
+        prevNormalized = normalized;
+        normalized = normalized.replace(/([a-z])-([a-z])/gi, '$1 $2');
+        normalized = normalized.replace(/([a-z])\.([a-z])/gi, '$1 $2');
+        normalized = normalized.replace(/([a-z])\/([a-z])/gi, '$1 $2');
+    }
+    
     // Bước 5: Tách số có dấu phân cách (12.34, 12/34, 12-34)
     normalized = normalized.replace(/(\d+)[.\/\-](\d+)/g, '$1 $2');
     // Lặp lại để xử lý chuỗi dài như 12.34.56
@@ -60,10 +100,6 @@ export function normalizeMessage(
     }
     
     // Bước 6: Tách đài viết liền (vlbl -> vl bl)
-    const provinceAliases = provinces.flatMap(p => 
-        p.aliases.split(',').map(a => a.trim().toLowerCase())
-    ).sort((a, b) => b.length - a.length); // Dài trước
-    
     // Thêm khoảng trắng sau mỗi alias đài
     for (const alias of provinceAliases) {
         const regex = new RegExp(`(${alias})(?=[a-z0-9])`, 'gi');

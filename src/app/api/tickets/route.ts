@@ -5,6 +5,7 @@ import { parseMessage } from "@/utils/parser";
 import { getLotteryResults, resultsByProvince, getLastNDigits } from "@/utils/result";
 import { BetSettings as FlatBetSettings, DEFAULT_BET_SETTINGS as FLAT_DEFAULT } from "@/types/bet-settings";
 import { ParsedBet, BetSettings } from "@/types/messages";
+import { getProvincesByDay } from "@/utils/province";
 
 /**
  * GET /api/tickets
@@ -121,15 +122,22 @@ export async function POST(req: NextRequest) {
         
         // 2. Lấy provinces và betTypes (CHỈ LẤY THEO MIỀN ĐƯỢC CHỌN)
         const date = drawDate ? new Date(drawDate) : new Date();
-        const [allProvincesInRegion, betTypes] = await Promise.all([
-            db.lotteryProvince.findMany({ where: { region } }), // Chỉ lấy đài của miền này
+        const [todayProvinces, betTypes] = await Promise.all([
+            getProvincesByDay(region, date),  // Đài quay hôm đó
             db.betType.findMany(),
         ]);
+
+        if (todayProvinces.length === 0) {
+            return NextResponse.json({
+                success: false,
+                error: 'Không có đài nào mở xổ ngày này',
+            }, { status: 400 });
+        }
         
         // 3. Parse tin nhắn (chỉ với đài của miền được chọn)
         const parsedResult = parseMessage(
             message,
-            allProvincesInRegion,
+            todayProvinces,
             betTypes,
             betSettings,
             region,
@@ -161,7 +169,7 @@ export async function POST(req: NextRequest) {
         const totalAmount = parsedResult.bets.reduce((sum, bet) => sum + bet.amount, 0);
         
         // 7. Chuẩn bị dữ liệu bets để lưu
-        const betsCreateData = prepareBetsCreateData(parsedResult.bets, allProvincesInRegion, betTypes);
+        const betsCreateData = prepareBetsCreateData(parsedResult.bets, todayProvinces, betTypes);
         
         // 8. Lưu ticket + bets trong transaction
         const ticket = await db.$transaction(async (tx) => {
