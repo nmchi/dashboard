@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
         // Chuyển sang nested format cho parser - cast qua unknown
         const betSettings = convertFlatToNested(flatSettings, region) as unknown as BetSettings;
         
-        // 2. Lấy danh sách đài và kiểu cược (CHỈ LẤY THEO MIỀN ĐƯỢC CHỌN)
+        // 2. Lấy danh sách đài và kiểu cược (CHỈ LẤY ĐÀI QUAY HÔM ĐÓ)
         const date = drawDate ? new Date(drawDate) : new Date();
         const [todayProvinces, betTypes] = await Promise.all([
             getProvincesByDay(region, date),  // Đài quay hôm đó, đã sort theo ordering
@@ -52,10 +52,10 @@ export async function POST(req: NextRequest) {
             } as ParseMessageResponse);
         }
         
-        // 3. Parse tin nhắn (chỉ với đài của miền được chọn)
+        // 3. Parse tin nhắn (với đài quay hôm đó)
         const parsedResult = parseMessage(
             message,
-            todayProvinces,
+            todayProvinces,  // ✅ Đài quay hôm đó
             betTypes,
             betSettings,
             region,
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
             message,
             todayProvinces,
             betTypes,
-            todayProvinces
+            todayProvinces  // ✅ priorityProvinces = đài quay hôm đó (đã sort)
         );
         
         // 5. Lấy kết quả xổ số (CHỈ LẤY THEO MIỀN ĐƯỢC CHỌN)
@@ -86,11 +86,17 @@ export async function POST(req: NextRequest) {
         // 7. Tổng hợp theo loại
         const totalByType = calculateTotalsByType(parsedResult.bets);
         
+        // 8. Kiểm tra nếu có lỗi validation
+        const hasErrors = parsedResult.errors && parsedResult.errors.length > 0;
+        
         return NextResponse.json({
-            success: true,
+            success: !hasErrors || parsedResult.bets.length > 0,  // success nếu có ít nhất 1 bet hợp lệ
             parsedResult,
             normalizedMessage,
             totalByType,
+            error: hasErrors && parsedResult.bets.length === 0 
+                ? parsedResult.errors![0].message  // Hiển thị lỗi đầu tiên nếu không có bet nào
+                : undefined,
         } as ParseMessageResponse);
         
     } catch (error) {

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "@/lib/auth-client";
 import { Region } from "@prisma/client";
-import { ParseMessageResponse } from "@/types/messages";
+import { ParseMessageResponse, ParseError } from "@/types/messages";
 
 interface Player {
     id: string;
@@ -87,7 +87,7 @@ export default function ParserPage() {
             setResult(data);
             
             // Tính toán lại totalsByType với xac
-            if (data.success && data.parsedResult?.bets) {
+            if (data.parsedResult?.bets && data.parsedResult.bets.length > 0) {
                 const totals = calculateTotalsWithXac(data.parsedResult.bets);
                 setTotalsByType(totals);
             }
@@ -100,6 +100,14 @@ export default function ParserPage() {
 
     const handleSave = async () => {
         if (!result?.success || !selectedPlayerId) return;
+        
+        // Kiểm tra có lỗi validation không
+        if (result.parsedResult?.errors && result.parsedResult.errors.length > 0) {
+            const confirm = window.confirm(
+                `Có ${result.parsedResult.errors.length} lỗi validation. Bạn vẫn muốn lưu các cược hợp lệ?`
+            );
+            if (!confirm) return;
+        }
         
         setSaving(true);
         
@@ -272,6 +280,10 @@ export default function ParserPage() {
         "dax": "dax",
     };
 
+    // Lấy errors từ result
+    const validationErrors: ParseError[] = result?.parsedResult?.errors || [];
+    const hasValidationErrors = validationErrors.length > 0;
+
     return (
         <div className="space-y-6">
             <div>
@@ -357,7 +369,7 @@ export default function ParserPage() {
                     <textarea
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Ví dụ: vl 12 34 dd 1n&#10;tg bl 56 78 2n&#10;da 12 34 1n"
+                        placeholder="Ví dụ: vl 12 34 dd 1n&#10;tg bl 56 78 2n&#10;ag bt 11 66 dx 5"
                         className="w-full border rounded-lg px-3 py-2 h-32 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         disabled={!selectedPlayerId}
                     />
@@ -376,13 +388,17 @@ export default function ParserPage() {
                         {loading ? 'Đang xử lý...' : '🔍 Phân tích'}
                     </button>
                     
-                    {result?.success && (
+                    {result?.success && result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
                         <button
                             onClick={handleSave}
                             disabled={saving}
-                            className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className={`px-6 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                                hasValidationErrors 
+                                    ? 'bg-orange-500 hover:bg-orange-600 text-white' 
+                                    : 'bg-green-600 hover:bg-green-700 text-white'
+                            }`}
                         >
-                            {saving ? 'Đang lưu...' : '💾 Lưu tin nhắn'}
+                            {saving ? 'Đang lưu...' : hasValidationErrors ? '⚠️ Lưu (có lỗi)' : '💾 Lưu tin nhắn'}
                         </button>
                     )}
                 </div>
@@ -391,7 +407,44 @@ export default function ParserPage() {
             {/* Result Section */}
             {result && (
                 <div className="bg-white rounded-lg border shadow-sm p-6">
-                    {result.success ? (
+                    {/* Hiển thị lỗi chính (nếu không parse được gì) */}
+                    {!result.success && result.error && (
+                        <div className="text-red-600 p-4 bg-red-50 rounded-lg border border-red-200 mb-4">
+                            ❌ {result.error}
+                        </div>
+                    )}
+                    
+                    {/* Hiển thị lỗi validation */}
+                    {hasValidationErrors && (
+                        <div className="mb-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
+                            <h4 className="font-semibold text-orange-700 mb-2 flex items-center gap-2">
+                                ⚠️ Lỗi validation ({validationErrors.length})
+                            </h4>
+                            <ul className="space-y-2">
+                                {validationErrors.map((err, idx) => (
+                                    <li key={idx} className="text-sm text-orange-800 flex items-start gap-2">
+                                        <span className="text-orange-500">•</span>
+                                        <div>
+                                            <span className="font-medium">{err.type}:</span> {err.message}
+                                            {err.numbers && err.numbers.length > 0 && (
+                                                <span className="ml-1 text-orange-600">
+                                                    (số: {err.numbers.join(', ')})
+                                                </span>
+                                            )}
+                                            {err.provinces && err.provinces.length > 0 && (
+                                                <span className="ml-1 text-orange-600">
+                                                    (đài: {err.provinces.join(', ')})
+                                                </span>
+                                            )}
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                    
+                    {/* Kết quả parse thành công (có thể có cả lỗi validation) */}
+                    {result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
                         <>
                             {/* Normalized Message */}
                             <div className="mb-4 p-3 bg-slate-100 rounded-lg">
@@ -415,14 +468,14 @@ export default function ParserPage() {
                                             <tbody className="divide-y divide-slate-200">
                                                 {(Object.keys(categoryLabels) as Array<keyof typeof categoryLabels>).map((key) => {
                                                     const data = totalsByType[key as keyof ExtendedTotalsByType];
+                                                    const netWin = data.winAmount - data.amount;
                                                     return (
                                                         <tr key={key} className="hover:bg-slate-50">
                                                             <td className="px-4 py-3 text-slate-700">{categoryLabels[key]}</td>
                                                             <td className="px-4 py-3 text-center">{formatMoney(data.xac)}</td>
                                                             <td className="px-4 py-3 text-center">{formatMoney(data.amount)}</td>
                                                             <td className="px-4 py-3 text-right text-slate-700">
-                                                                {data.winAmount > 0 ? `-${formatMoney(data.winAmount)}` : '0'}
-                                                                ({data.winCount}n)
+                                                                {formatMoney(netWin)} ({data.winCount}n)
                                                             </td>
                                                         </tr>
                                                     );
@@ -433,7 +486,7 @@ export default function ParserPage() {
                                                     <td className="px-4 py-3 text-center">{formatMoney(totalsByType.total.xac)}</td>
                                                     <td className="px-4 py-3 text-center">{formatMoney(totalsByType.total.amount)}</td>
                                                     <td className="px-4 py-3 text-right text-slate-700">
-                                                        {totalsByType.total.winAmount > 0 ? `-${formatMoney(totalsByType.total.winAmount)}` : '0'}
+                                                        {formatMoney(totalsByType.total.winAmount - totalsByType.total.amount)}
                                                         ({totalsByType.total.winCount}n)
                                                     </td>
                                                 </tr>
@@ -448,8 +501,8 @@ export default function ParserPage() {
                                             const isPositive = thuTra >= 0;
                                             return (
                                                 <span className="text-lg">
-                                                    <span className={isPositive ? 'text-slate-600' : 'text-red-600'}>Thu</span>/
-                                                    <span className={isPositive ? 'text-blue-600' : 'text-slate-600'}>Trả</span>:{' '}
+                                                    <span className={isPositive ? 'text-blue-600' : 'text-blue-600'}>Thu</span>/
+                                                    <span className={isPositive ? 'text-red-600' : 'text-red-600'}>Trả</span>:{' '}
                                                     <span className={`font-bold ${isPositive ? 'text-blue-600' : 'text-red-600'}`}>
                                                         {formatMoney(thuTra)}
                                                     </span>
@@ -461,7 +514,7 @@ export default function ParserPage() {
                             )}
                             
                             {/* Bets Table - Gộp theo đài + kiểu cược */}
-                            <h3 className="font-semibold mb-3 text-slate-800">📋 Chi tiết cược</h3>
+                            <h3 className="font-semibold mb-3 text-slate-800">📋 Chi tiết cược ({result.parsedResult.bets.length} cược hợp lệ)</h3>
                             <div className="overflow-x-auto border rounded-lg">
                                 <table className="w-full text-sm">
                                     <thead className="bg-slate-50 border-b">
@@ -513,9 +566,12 @@ export default function ParserPage() {
                                 </table>
                             </div>
                         </>
-                    ) : (
-                        <div className="text-red-600 p-4 bg-red-50 rounded-lg border border-red-200">
-                            ❌ {result.error}
+                    )}
+                    
+                    {/* Không có bet nào hợp lệ (chỉ có lỗi) */}
+                    {result.parsedResult?.bets?.length === 0 && !result.error && (
+                        <div className="text-orange-600 p-4 bg-orange-50 rounded-lg border border-orange-200">
+                            ⚠️ Không có cược hợp lệ nào được tạo. Vui lòng kiểm tra lỗi validation ở trên.
                         </div>
                     )}
                 </div>

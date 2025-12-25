@@ -1,5 +1,5 @@
 import { LotteryProvince, BetType, Region } from "@prisma/client";
-import { ParsedBet, ParsedMessage, BetSettings, DEFAULT_BET_SETTINGS } from "@/types/messages";
+import { ParsedBet, ParsedMessage, ParseError, BetSettings, DEFAULT_BET_SETTINGS } from "@/types/messages";
 import { getDayOfWeek } from "./date";
 import { findProvinceByAlias, getPriorityProvinces } from "./province";
 import { normalizeMessage } from "./normalizer";
@@ -13,6 +13,7 @@ interface ParseContext {
     betTypes: BetType[];
     betSettings: BetSettings;
     region: Region;
+    errors: ParseError[];  // Collect errors during parsing
 }
 
 /**
@@ -49,9 +50,17 @@ export function parseMessage(
         betTypes,
         betSettings: settings,
         region,
+        errors: [],
     };
     
-    return parseNormalizedMessage(normalizedMessage, context);
+    const result = parseNormalizedMessage(normalizedMessage, context);
+    
+    // Attach errors to result
+    if (context.errors.length > 0) {
+        result.errors = context.errors;
+    }
+    
+    return result;
 }
 
 /**
@@ -173,26 +182,77 @@ function createBets(
 ): ParsedBet[] {
     const bets: ParsedBet[] = [];
     const provinceNames = provinces.map(p => p.name);
+    const provinceCount = provinces.length;
     
     const betTypeName = betType.name;
     
-    // Xử lý theo loại cược đặc biệt
-    if (betTypeName === 'Đá' || betTypeName === 'Đá thẳng') {
-        // Đá: gom tất cả số thành 1 cược
-        if (numbers.length >= 2) {
-            const bet = createSingleBet(numbers, betTypeName, point, provinceNames, context);
-            bets.push(bet);
+    // ========================================
+    // VALIDATION: Đá xiên
+    // - Yêu cầu ít nhất 2 đài
+    // - Yêu cầu 2-4 số
+    // ========================================
+    if (betTypeName === 'Đá xiên') {
+        // Validate số đài
+        if (provinceCount < 2) {
+            context.errors.push({
+                message: `Đá xiên yêu cầu ít nhất 2 đài (hiện có ${provinceCount} đài: ${provinceNames.join(', ')})`,
+                type: 'Đá xiên',
+                numbers: numbers,
+                provinces: provinceNames,
+            });
+            return bets; // Không tạo bet
         }
+        
+        // Validate số lượng số
+        if (numbers.length < 2) {
+            context.errors.push({
+                message: `Đá xiên yêu cầu ít nhất 2 số (hiện có ${numbers.length} số: ${numbers.join(', ')})`,
+                type: 'Đá xiên',
+                numbers: numbers,
+                provinces: provinceNames,
+            });
+            return bets;
+        }
+        
+        if (numbers.length > 4) {
+            context.errors.push({
+                message: `Đá xiên tối đa 4 số (hiện có ${numbers.length} số: ${numbers.join(', ')})`,
+                type: 'Đá xiên',
+                numbers: numbers,
+                provinces: provinceNames,
+            });
+            return bets;
+        }
+        
+        // Validation passed - tạo bet
+        const bet = createSingleBet(numbers, betTypeName, point, provinceNames, context);
+        bets.push(bet);
         return bets;
     }
     
-    if (betTypeName === 'Đá xiên') {
-        if (numbers.length >= 2) {
-            const bet = createSingleBet(numbers, betTypeName, point, provinceNames, context);
-            bets.push(bet);
+    // ========================================
+    // VALIDATION: Đá thẳng
+    // - Yêu cầu ít nhất 2 số
+    // ========================================
+    if (betTypeName === 'Đá' || betTypeName === 'Đá thẳng') {
+        if (numbers.length < 2) {
+            context.errors.push({
+                message: `Đá thẳng yêu cầu ít nhất 2 số (hiện có ${numbers.length} số)`,
+                type: betTypeName,
+                numbers: numbers,
+                provinces: provinceNames,
+            });
+            return bets;
         }
+        
+        const bet = createSingleBet(numbers, betTypeName, point, provinceNames, context);
+        bets.push(bet);
         return bets;
     }
+    
+    // ========================================
+    // Các loại cược khác (giữ nguyên logic cũ)
+    // ========================================
     
     if (betTypeName === 'Đầu đuôi') {
         // Tách thành 2 cược: Đầu và Đuôi
@@ -211,6 +271,13 @@ function createBets(
                 const betDau = createSingleBet(num, 'Xỉu chủ đầu', point, provinceNames, context);
                 const betDuoi = createSingleBet(num, 'Xỉu chủ đuôi', point, provinceNames, context);
                 bets.push(betDau, betDuoi);
+            } else {
+                context.errors.push({
+                    message: `Xỉu chủ yêu cầu số có 3 chữ số (số "${num}" có ${num.length} chữ số)`,
+                    type: 'Xỉu chủ',
+                    numbers: [num],
+                    provinces: provinceNames,
+                });
             }
         }
         return bets;
@@ -226,6 +293,13 @@ function createBets(
                     const betDuoi = createSingleBet(perm, 'Xỉu chủ đảo đuôi', point, provinceNames, context);
                     bets.push(betDau, betDuoi);
                 }
+            } else {
+                context.errors.push({
+                    message: `Xỉu chủ đảo yêu cầu số có 3 chữ số (số "${num}" có ${num.length} chữ số)`,
+                    type: 'Xỉu chủ đảo',
+                    numbers: [num],
+                    provinces: provinceNames,
+                });
             }
         }
         return bets;
@@ -268,6 +342,13 @@ function createBets(
                     const bet = createSingleBet(perm, 'Bao lô', point, provinceNames, context);
                     bets.push(bet);
                 }
+            } else {
+                context.errors.push({
+                    message: `Bao đảo yêu cầu số có 2-4 chữ số (số "${num}" có ${num.length} chữ số)`,
+                    type: 'Bao đảo',
+                    numbers: [num],
+                    provinces: provinceNames,
+                });
             }
         }
         return bets;

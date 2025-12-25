@@ -96,9 +96,17 @@ export interface ParsedBet {
     winCount?: number;           // Số lần trúng
 }
 
+export interface ParseError {
+    message: string;             // Mô tả lỗi
+    type?: string;               // Loại cược gây lỗi
+    numbers?: string[];          // Số liên quan
+    provinces?: string[];        // Đài liên quan
+}
+
 // Kết quả phân tích tin nhắn
 export interface ParsedMessage {
     bets: ParsedBet[];
+    errors?: ParseError[];
 }
 
 // Tổng hợp theo loại cược
