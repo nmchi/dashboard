@@ -371,7 +371,6 @@ function calculateWin(
             else if (numDigits === 3) winRate = getWinRate('3l', 650);
             else if (numDigits === 4) winRate = getWinRate('4l', 5500);
             break;
-        case 'Xỉu chủ':
         case 'Xỉu chủ đầu':
         case 'Xỉu chủ đảo đầu':
             winRate = getWinRate('3dau', 650);
@@ -380,7 +379,6 @@ function calculateWin(
         case 'Xỉu chủ đảo đuôi':
             winRate = getWinRate('3duoi', 650);
             break;
-        case 'Đá':
         case 'Đá thẳng':
             winRate = getWinRate('da', 650);
             break;
@@ -408,7 +406,6 @@ function calculateWin(
                 digitsToCheck = getTailPrizeDigits(prizes);
                 break;
                 
-            case 'Xỉu chủ':
             case 'Xỉu chủ đầu':
             case 'Xỉu chủ đảo đầu':
                 // Xỉu chủ đầu: CHỈ dò giải 7 (3 số cuối)
@@ -433,7 +430,6 @@ function calculateWin(
                 }
                 break;
                 
-            case 'Đá':
             case 'Đá thẳng':
             case 'Đá xiên':
                 // Đá: dò TẤT CẢ 18 lô (2 số cuối)

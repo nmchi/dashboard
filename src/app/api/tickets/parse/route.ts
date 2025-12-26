@@ -240,14 +240,18 @@ function calculateWin(
             else if (numDigits === 3) winRate = getWinRate('3l', 650);
             else if (numDigits === 4) winRate = getWinRate('4l', 5500);
             break;
-        case 'Xỉu chủ':
         case 'Xỉu chủ đầu':
+            winRate = getWinRate('3dau', 650);
+            break;
+        case 'Xỉu chủ đảo đầu':
             winRate = getWinRate('3dau', 650);
             break;
         case 'Xỉu chủ đuôi':
             winRate = getWinRate('3duoi', 650);
             break;
-        case 'Đá':
+        case 'Xỉu chủ đảo đuôi':
+            winRate = getWinRate('3duoi', 650);
+            break;
         case 'Đá thẳng':
             winRate = getWinRate('da', 650);
             break;
@@ -275,7 +279,6 @@ function calculateWin(
                 digitsToCheck = getTailPrizeDigits(prizes);
                 break;
                 
-            case 'Xỉu chủ':
             case 'Xỉu chủ đầu':
             case 'Xỉu chủ đảo đầu':
                 // Xỉu chủ đầu: CHỈ dò giải 7 (3 số cuối)
@@ -299,8 +302,7 @@ function calculateWin(
                     digitsToCheck = getAllLo4Digits(prizes);
                 }
                 break;
-                
-            case 'Đá':
+
             case 'Đá thẳng':
             case 'Đá xiên':
                 // Đá: dò TẤT CẢ 18 lô (2 số cuối)
@@ -356,7 +358,7 @@ function calculateTotalsByType(bets: ParsedBet[]): TotalsByType {
             else if (num.length === 4) category = "4c";
         } else if (bet.type.includes('Xỉu chủ')) {
             category = "3c";
-        } else if (bet.type === 'Đá' || bet.type === 'Đá thẳng') {
+        } else if (bet.type === 'Đá thẳng') {
             category = "dat";
         } else if (bet.type === 'Đá xiên') {
             category = "dax";

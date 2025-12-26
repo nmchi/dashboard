@@ -203,7 +203,7 @@ export default function ParserPage() {
                 // Không nhân số lô như bao lô
                 category = "3c";
                 loMultiplier = 1;
-            } else if (bet.type === 'Đá' || bet.type === 'Đá thẳng') {
+            } else if (bet.type === 'Đá thẳng') {
                 category = "dat";
                 // Đá thẳng: nhân với số lô × 2 (vì mỗi cặp có 2 số)
                 loMultiplier = getLoCount(2, region) * 2;
