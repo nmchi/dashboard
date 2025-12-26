@@ -12,14 +12,15 @@ interface Player {
 }
 
 // Extended type với xac
+// winPoints = số điểm × số lần trúng (để người dùng dễ tính: winPoints × giá trúng = tiền thắng)
 interface ExtendedTotalsByType {
-    "2c-dd": { xac: number; amount: number; winAmount: number; winCount: number };
-    "2c-b": { xac: number; amount: number; winAmount: number; winCount: number };
-    "3c": { xac: number; amount: number; winAmount: number; winCount: number };
-    "4c": { xac: number; amount: number; winAmount: number; winCount: number };
-    "dat": { xac: number; amount: number; winAmount: number; winCount: number };
-    "dax": { xac: number; amount: number; winAmount: number; winCount: number };
-    "total": { xac: number; amount: number; winAmount: number; winCount: number };
+    "2c-dd": { xac: number; amount: number; winAmount: number; winPoints: number };
+    "2c-b": { xac: number; amount: number; winAmount: number; winPoints: number };
+    "3c": { xac: number; amount: number; winAmount: number; winPoints: number };
+    "4c": { xac: number; amount: number; winAmount: number; winPoints: number };
+    "dat": { xac: number; amount: number; winAmount: number; winPoints: number };
+    "dax": { xac: number; amount: number; winAmount: number; winPoints: number };
+    "total": { xac: number; amount: number; winAmount: number; winPoints: number };
 }
 
 export default function ParserPage() {
@@ -161,9 +162,10 @@ export default function ParserPage() {
 
     /**
      * Tính toán totals với xac (chưa nhân %) và amount (đã nhân %)
+     * winPoints = số điểm × số lần trúng (để người dùng dễ tính tiền thắng)
      */
     const calculateTotalsWithXac = (bets: NonNullable<ParseMessageResponse['parsedResult']>['bets']): ExtendedTotalsByType => {
-        const emptyTotal = () => ({ xac: 0, amount: 0, winAmount: 0, winCount: 0 });
+        const emptyTotal = () => ({ xac: 0, amount: 0, winAmount: 0, winPoints: 0 });
         
         const totals: ExtendedTotalsByType = {
             "2c-dd": emptyTotal(),
@@ -233,16 +235,20 @@ export default function ParserPage() {
                 xac = bet.point * 1000 * provinceCount * numCount * loMultiplier;
             }
             
+            // Tính winPoints = số điểm × số lần trúng
+            // Ví dụ: cược 10đ, trúng 2 lần → winPoints = 20
+            const winPoints = bet.point * (bet.winCount || 0);
+            
             // Cộng dồn
             totals[category].xac += xac;
             totals[category].amount += bet.amount; // Đã nhân % từ API
             totals[category].winAmount += bet.winAmount || 0;
-            totals[category].winCount += bet.winCount || 0;
+            totals[category].winPoints += winPoints;
             
             totals.total.xac += xac;
             totals.total.amount += bet.amount;
             totals.total.winAmount += bet.winAmount || 0;
-            totals.total.winCount += bet.winCount || 0;
+            totals.total.winPoints += winPoints;
         }
         
         return totals;
@@ -475,7 +481,7 @@ export default function ParserPage() {
                                                             <td className="px-4 py-3 text-center">{formatMoney(data.xac)}</td>
                                                             <td className="px-4 py-3 text-center">{formatMoney(data.amount)}</td>
                                                             <td className="px-4 py-3 text-right text-slate-700">
-                                                                {formatMoney(netWin)} ({data.winCount}n)
+                                                                {formatMoney(netWin)} ({data.winPoints}n)
                                                             </td>
                                                         </tr>
                                                     );
@@ -487,7 +493,7 @@ export default function ParserPage() {
                                                     <td className="px-4 py-3 text-center">{formatMoney(totalsByType.total.amount)}</td>
                                                     <td className="px-4 py-3 text-right text-slate-700">
                                                         {formatMoney(totalsByType.total.winAmount - totalsByType.total.amount)}
-                                                        ({totalsByType.total.winCount}n)
+                                                        ({totalsByType.total.winPoints}n)
                                                     </td>
                                                 </tr>
                                             </tbody>

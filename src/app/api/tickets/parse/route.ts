@@ -3,7 +3,18 @@ import { db } from "@/lib/prisma";
 import { Region } from "@prisma/client";
 import { parseMessage, normalizeMessage } from "@/utils/parser";
 import { getProvincesByDay } from "@/utils/province";
-import { getLotteryResults, resultsByProvince, getLastNDigits } from "@/utils/result";
+import { 
+    getLotteryResults, 
+    resultsByProvince, 
+    getLastNDigits,
+    getHeadPrizeDigits,
+    getTailPrizeDigits,
+    getXiuChuHeadDigits,
+    getXiuChuTailDigits,
+    getAllLo2Digits,
+    getAllLo3Digits,
+    getAllLo4Digits
+} from "@/utils/result";
 import { ParseMessageResponse, ParsedBet, TotalsByType, TypeTotal, BetSettings } from "@/types/messages";
 import { BetSettings as FlatBetSettings, DEFAULT_BET_SETTINGS as FLAT_DEFAULT } from "@/types/bet-settings";
 
@@ -245,15 +256,65 @@ function calculateWin(
             break;
     }
     
-    // Dò số trúng
+    // Dò số trúng - LOGIC KHÁC NHAU CHO TỪNG LOẠI CƯỢC
     for (const provinceName of bet.provinces) {
         const prizes = resultsMap[provinceName];
         if (!prizes) continue;
         
-        const lastDigits = getLastNDigits(prizes, numDigits);
+        // Lấy danh sách số cần dò TÙY THEO LOẠI CƯỢC
+        let digitsToCheck: string[] = [];
         
+        switch (bet.type) {
+            case 'Đầu':
+                // Đầu: CHỈ dò giải 8 (2 số cuối)
+                digitsToCheck = getHeadPrizeDigits(prizes);
+                break;
+                
+            case 'Đuôi':
+                // Đuôi: CHỈ dò giải ĐB (2 số cuối)
+                digitsToCheck = getTailPrizeDigits(prizes);
+                break;
+                
+            case 'Xỉu chủ':
+            case 'Xỉu chủ đầu':
+            case 'Xỉu chủ đảo đầu':
+                // Xỉu chủ đầu: CHỈ dò giải 7 (3 số cuối)
+                digitsToCheck = getXiuChuHeadDigits(prizes);
+                break;
+                
+            case 'Xỉu chủ đuôi':
+            case 'Xỉu chủ đảo đuôi':
+                // Xỉu chủ đuôi: CHỈ dò giải ĐB (3 số cuối)
+                digitsToCheck = getXiuChuTailDigits(prizes);
+                break;
+                
+            case 'Bao lô':
+            case 'Bao đảo':
+                // Bao lô: dò TẤT CẢ các giải (18 lô MN/MT, 27 lô MB)
+                if (numDigits === 2) {
+                    digitsToCheck = getAllLo2Digits(prizes);
+                } else if (numDigits === 3) {
+                    digitsToCheck = getAllLo3Digits(prizes);
+                } else if (numDigits === 4) {
+                    digitsToCheck = getAllLo4Digits(prizes);
+                }
+                break;
+                
+            case 'Đá':
+            case 'Đá thẳng':
+            case 'Đá xiên':
+                // Đá: dò TẤT CẢ 18 lô (2 số cuối)
+                digitsToCheck = getAllLo2Digits(prizes);
+                break;
+                
+            default:
+                // Mặc định: dùng hàm cũ
+                digitsToCheck = getLastNDigits(prizes, numDigits);
+        }
+        
+        // Đếm số lần trúng
         for (const num of numbers) {
-            const count = lastDigits.filter(d => d === num).length;
+            const count = digitsToCheck.filter(d => d === num).length;
             winCount += count;
         }
     }
