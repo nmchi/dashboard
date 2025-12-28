@@ -231,8 +231,51 @@ function calculateWin(
             break;
     }
     
+    // ============ LOGIC RIÊNG CHO ĐÁ THẲNG ============
+    if (bet.type === 'Đá thẳng' && numbers.length >= 2) {
+        const allDigits: string[] = [];
+        const digitsByProvince: Record<string, string[]> = {};
+        
+        // Thu thập số từng đài
+        for (const provinceName of bet.provinces) {
+            const prizes = resultsMap[provinceName];
+            if (!prizes) continue;
+            
+            const digitsFromProvince = getAllLo2Digits(prizes);
+            digitsByProvince[provinceName] = digitsFromProvince;
+            allDigits.push(...digitsFromProvince);
+        }
+        
+        // Tính tất cả tổ hợp 2 số
+        let totalAmount = 0;
+        let totalCount = 0;
+        
+        for (let i = 0; i < numbers.length; i++) {
+            for (let j = i + 1; j < numbers.length; j++) {
+                const n1 = numbers[i];
+                const n2 = numbers[j];
+                
+                // Kiểm tra từng đài xem cả 2 số có ra không
+                for (const provinceName of bet.provinces) {
+                    const digitsInProvince = digitsByProvince[provinceName] || [];
+                    const count1 = digitsInProvince.filter(d => d === n1).length;
+                    const count2 = digitsInProvince.filter(d => d === n2).length;
+                    
+                    // Chỉ tính nếu cả 2 số đều ra
+                    if (count1 > 0 && count2 > 0) {
+                        const combinationWinCount = count1 * 0.5 + count2 * 0.5;
+                        totalAmount += combinationWinCount * bet.point * 1000 * 750;
+                        totalCount += combinationWinCount;
+                    }
+                }
+            }
+        }
+        
+        winCount = totalCount;
+        winAmount = totalAmount;
+    }
     // ============ LOGIC RIÊNG CHO ĐÁ XIÊN ============
-    if (bet.type === 'Đá xiên') {
+    else if (bet.type === 'Đá xiên') {
         const allDigits: string[] = [];
         
         for (const provinceName of bet.provinces) {
@@ -314,6 +357,31 @@ function calculateWin(
             let totalAmount = 0;
             let totalCount = 0;
             
+            // Tính countMap từng đài để kiểm tra số nào ở đài nào
+            const countByProvince: Record<string, Record<string, number>> = {};
+            for (const provinceName of bet.provinces) {
+                const prizes = resultsMap[provinceName];
+                if (!prizes) continue;
+                
+                const digitsFromProvince = getAllLo2Digits(prizes);
+                countByProvince[provinceName] = {};
+                for (const num of numbers) {
+                    countByProvince[provinceName][num] = digitsFromProvince.filter(d => d === num).length;
+                }
+            }
+            
+            // Helper function: kiểm tra cặp/bộ có số từ cả 2 đài không
+            const hasFromMultipleProvinces = (nums: string[]): boolean => {
+                for (let i = 0; i < bet.provinces.length; i++) {
+                    for (let j = i + 1; j < bet.provinces.length; j++) {
+                        const hasInProv_i = nums.some(n => (countByProvince[bet.provinces[i]]?.[n] || 0) > 0);
+                        const hasInProv_j = nums.some(n => (countByProvince[bet.provinces[j]]?.[n] || 0) > 0);
+                        if (hasInProv_i && hasInProv_j) return true;
+                    }
+                }
+                return false;
+            };
+            
             // Xiên 4: Giá = 550 × 4
             const minCount4 = Math.min(c1, c2, c3, c4);
             if (minCount4 > 0) {
@@ -321,61 +389,58 @@ function calculateWin(
                 totalCount += minCount4;
             }
             
-            // Xiên 3 - 4 tổ hợp (chỉ tính nếu có phần thừa sau xiên 4)
-            const remain1 = Math.max(0, c1 - minCount4);
-            const remain2 = Math.max(0, c2 - minCount4);
-            const remain3 = Math.max(0, c3 - minCount4);
-            const remain4 = Math.max(0, c4 - minCount4);
+            // Xiên 3 - 4 tổ hợp (chỉ tính nếu có số từ cả 2 đài)
+            const minCount3_123 = Math.min(c1, c2, c3);
+            const minCount3_124 = Math.min(c1, c2, c4);
+            const minCount3_134 = Math.min(c1, c3, c4);
+            const minCount3_234 = Math.min(c2, c3, c4);
             
-            if (remain1 > 0 && remain2 > 0 && remain3 > 0) {
-                const minCount3_123 = Math.min(c1, c2, c3);
+            if (minCount3_123 > 0 && hasFromMultipleProvinces([n1, n2, n3])) {
                 totalAmount += minCount3_123 * bet.point * 1000 * (550 * 2);
                 totalCount += minCount3_123;
             }
-            if (remain1 > 0 && remain2 > 0 && remain4 > 0) {
-                const minCount3_124 = Math.min(c1, c2, c4);
+            if (minCount3_124 > 0 && hasFromMultipleProvinces([n1, n2, n4])) {
                 totalAmount += minCount3_124 * bet.point * 1000 * (550 * 2);
                 totalCount += minCount3_124;
             }
-            if (remain1 > 0 && remain3 > 0 && remain4 > 0) {
-                const minCount3_134 = Math.min(c1, c3, c4);
+            if (minCount3_134 > 0 && hasFromMultipleProvinces([n1, n3, n4])) {
                 totalAmount += minCount3_134 * bet.point * 1000 * (550 * 2);
                 totalCount += minCount3_134;
             }
-            if (remain2 > 0 && remain3 > 0 && remain4 > 0) {
-                const minCount3_234 = Math.min(c2, c3, c4);
+            if (minCount3_234 > 0 && hasFromMultipleProvinces([n2, n3, n4])) {
                 totalAmount += minCount3_234 * bet.point * 1000 * (550 * 2);
                 totalCount += minCount3_234;
             }
             
-            // Xiên 2 - 6 tổ hợp (chỉ tính nếu cả 2 số có thừa)
-            if (remain1 > 0 && remain2 > 0) {
-                const minCount2_12 = Math.min(c1, c2);
+            // Xiên 2 - 6 tổ hợp (chỉ tính nếu có số từ cả 2 đài)
+            const minCount2_12 = Math.min(c1, c2);
+            const minCount2_13 = Math.min(c1, c3);
+            const minCount2_14 = Math.min(c1, c4);
+            const minCount2_23 = Math.min(c2, c3);
+            const minCount2_24 = Math.min(c2, c4);
+            const minCount2_34 = Math.min(c3, c4);
+            
+            if (minCount2_12 > 0 && hasFromMultipleProvinces([n1, n2])) {
                 totalAmount += minCount2_12 * bet.point * 1000 * 550;
                 totalCount += minCount2_12;
             }
-            if (remain1 > 0 && remain3 > 0) {
-                const minCount2_13 = Math.min(c1, c3);
+            if (minCount2_13 > 0 && hasFromMultipleProvinces([n1, n3])) {
                 totalAmount += minCount2_13 * bet.point * 1000 * 550;
                 totalCount += minCount2_13;
             }
-            if (remain1 > 0 && remain4 > 0) {
-                const minCount2_14 = Math.min(c1, c4);
+            if (minCount2_14 > 0 && hasFromMultipleProvinces([n1, n4])) {
                 totalAmount += minCount2_14 * bet.point * 1000 * 550;
                 totalCount += minCount2_14;
             }
-            if (remain2 > 0 && remain3 > 0) {
-                const minCount2_23 = Math.min(c2, c3);
+            if (minCount2_23 > 0 && hasFromMultipleProvinces([n2, n3])) {
                 totalAmount += minCount2_23 * bet.point * 1000 * 550;
                 totalCount += minCount2_23;
             }
-            if (remain2 > 0 && remain4 > 0) {
-                const minCount2_24 = Math.min(c2, c4);
+            if (minCount2_24 > 0 && hasFromMultipleProvinces([n2, n4])) {
                 totalAmount += minCount2_24 * bet.point * 1000 * 550;
                 totalCount += minCount2_24;
             }
-            if (remain3 > 0 && remain4 > 0) {
-                const minCount2_34 = Math.min(c3, c4);
+            if (minCount2_34 > 0 && hasFromMultipleProvinces([n3, n4])) {
                 totalAmount += minCount2_34 * bet.point * 1000 * 550;
                 totalCount += minCount2_34;
             }
@@ -424,6 +489,7 @@ function calculateWin(
                     digitsToCheck = getLastNDigits(prizes, numDigits);
             }
             
+            // Cược khác (không phải đá thẳng)
             for (const num of numbers) {
                 const count = digitsToCheck.filter(d => d === num).length;
                 winCount += count;

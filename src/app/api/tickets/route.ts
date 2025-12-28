@@ -352,8 +352,51 @@ function calculateWin(
             break;
     }
     
+    // ============ LOGIC RIÊNG CHO ĐÁ THẲNG ============
+    if (bet.type === 'Đá thẳng' && numbers.length >= 2) {
+        const allDigits: string[] = [];
+        const digitsByProvince: Record<string, string[]> = {};
+        
+        // Thu thập số từng đài
+        for (const provinceName of bet.provinces) {
+            const prizes = resultsMap[provinceName];
+            if (!prizes) continue;
+            
+            const digitsFromProvince = getAllLo2Digits(prizes);
+            digitsByProvince[provinceName] = digitsFromProvince;
+            allDigits.push(...digitsFromProvince);
+        }
+        
+        // Tính tất cả tổ hợp 2 số
+        let totalAmount = 0;
+        let totalCount = 0;
+        
+        for (let i = 0; i < numbers.length; i++) {
+            for (let j = i + 1; j < numbers.length; j++) {
+                const n1 = numbers[i];
+                const n2 = numbers[j];
+                
+                // Kiểm tra từng đài xem cả 2 số có ra không
+                for (const provinceName of bet.provinces) {
+                    const digitsInProvince = digitsByProvince[provinceName] || [];
+                    const count1 = digitsInProvince.filter(d => d === n1).length;
+                    const count2 = digitsInProvince.filter(d => d === n2).length;
+                    
+                    // Chỉ tính nếu cả 2 số đều ra
+                    if (count1 > 0 && count2 > 0) {
+                        const combinationWinCount = count1 * 0.5 + count2 * 0.5;
+                        totalAmount += combinationWinCount * bet.point * 1000 * 750;
+                        totalCount += combinationWinCount;
+                    }
+                }
+            }
+        }
+        
+        winCount = totalCount;
+        winAmount = totalAmount;
+    }
     // ============ LOGIC RIÊNG CHO ĐÁ XIÊN ============
-    if (bet.type === 'Đá xiên') {
+    else if (bet.type === 'Đá xiên') {
         const allDigits: string[] = [];
         
         for (const provinceName of bet.provinces) {
@@ -545,6 +588,7 @@ function calculateWin(
                     digitsToCheck = getLastNDigits(prizes, numDigits);
             }
             
+            // Cược khác (không phải đá thẳng)
             for (const num of numbers) {
                 const count = digitsToCheck.filter(d => d === num).length;
                 winCount += count;
