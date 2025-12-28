@@ -18,11 +18,6 @@ import {
 import { ParseMessageResponse, ParsedBet, TotalsByType, TypeTotal, BetSettings } from "@/types/messages";
 import { BetSettings as FlatBetSettings, DEFAULT_BET_SETTINGS as FLAT_DEFAULT } from "@/types/bet-settings";
 
-/**
- * POST /api/tickets/parse
- * Preview phân tích tin nhắn (không lưu DB)
- * Lấy đài và kết quả theo miền được chọn
- */
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
@@ -35,24 +30,20 @@ export async function POST(req: NextRequest) {
             } as ParseMessageResponse, { status: 400 });
         }
         
-        // 1. Lấy thông tin Player và betSettings
         const player = await db.user.findUnique({
             where: { id: userId },
             select: { betSettings: true },
         });
         
-        // Cast qua unknown để tránh lỗi TypeScript với Prisma JsonValue
         const flatSettings: FlatBetSettings = player?.betSettings 
             ? (player.betSettings as unknown as FlatBetSettings) 
             : FLAT_DEFAULT;
         
-        // Chuyển sang nested format cho parser - cast qua unknown
         const betSettings = convertFlatToNested(flatSettings, region) as unknown as BetSettings;
         
-        // 2. Lấy danh sách đài và kiểu cược (CHỈ LẤY ĐÀI QUAY HÔM ĐÓ)
         const date = drawDate ? new Date(drawDate) : new Date();
         const [todayProvinces, betTypes] = await Promise.all([
-            getProvincesByDay(region, date),  // Đài quay hôm đó, đã sort theo ordering
+            getProvincesByDay(region, date),
             db.betType.findMany(),
         ]);
         
@@ -63,29 +54,25 @@ export async function POST(req: NextRequest) {
             } as ParseMessageResponse);
         }
         
-        // 3. Parse tin nhắn (với đài quay hôm đó)
         const parsedResult = parseMessage(
             message,
-            todayProvinces,  // ✅ Đài quay hôm đó
+            todayProvinces,
             betTypes,
             betSettings,
             region,
             date
         );
         
-        // 4. Chuẩn hóa tin nhắn để hiển thị
         const normalizedMessage = normalizeMessage(
             message,
             todayProvinces,
             betTypes,
-            todayProvinces  // ✅ priorityProvinces = đài quay hôm đó (đã sort)
+            todayProvinces
         );
         
-        // 5. Lấy kết quả xổ số (CHỈ LẤY THEO MIỀN ĐƯỢC CHỌN)
         const lotteryResults = await getLotteryResults(date, region);
         const resultsMap = resultsByProvince(lotteryResults);
         
-        // 6. Tính winAmount cho từng bet
         if (Object.keys(resultsMap).length > 0) {
             for (const bet of parsedResult.bets) {
                 const { winCount, winAmount } = calculateWin(bet, resultsMap, flatSettings, region);
@@ -94,19 +81,16 @@ export async function POST(req: NextRequest) {
             }
         }
         
-        // 7. Tổng hợp theo loại
         const totalByType = calculateTotalsByType(parsedResult.bets);
-        
-        // 8. Kiểm tra nếu có lỗi validation
         const hasErrors = parsedResult.errors && parsedResult.errors.length > 0;
         
         return NextResponse.json({
-            success: !hasErrors || parsedResult.bets.length > 0,  // success nếu có ít nhất 1 bet hợp lệ
+            success: !hasErrors || parsedResult.bets.length > 0,
             parsedResult,
             normalizedMessage,
             totalByType,
             error: hasErrors && parsedResult.bets.length === 0 
-                ? parsedResult.errors![0].message  // Hiển thị lỗi đầu tiên nếu không có bet nào
+                ? parsedResult.errors![0].message
                 : undefined,
         } as ParseMessageResponse);
         
@@ -119,9 +103,6 @@ export async function POST(req: NextRequest) {
     }
 }
 
-/**
- * Lấy tên miền
- */
 function getRegionName(region: Region): string {
     const names: Record<Region, string> = {
         MN: 'Miền Nam',
@@ -131,21 +112,13 @@ function getRegionName(region: Region): string {
     return names[region];
 }
 
-/**
- * Lấy suffix cho region (dùng để truy cập betSettings)
- */
 function getRegionSuffix(region: Region): string {
-    return region.toLowerCase(); // mn, mt, mb
+    return region.toLowerCase();
 }
 
-/**
- * Chuyển đổi flat betSettings sang nested format
- * Trả về object với đúng key theo region
- */
 function convertFlatToNested(flat: FlatBetSettings, region: Region) {
-    const suffix = getRegionSuffix(region); // mn, mt, mb
+    const suffix = getRegionSuffix(region);
     
-    // Helper để lấy giá trị an toàn theo region
     const getPrice = (type: string): number => {
         const key = `price${type}${suffix}` as keyof FlatBetSettings;
         const val = flat[key];
@@ -184,8 +157,6 @@ function convertFlatToNested(flat: FlatBetSettings, region: Region) {
         windx: getWin('dx', 550),
     };
     
-    // Build object với key cố định (mn là required trong type)
-    // Nhưng sẽ cast qua unknown ở nơi gọi
     return {
         prices: {
             mn: priceSettings,
@@ -201,7 +172,10 @@ function convertFlatToNested(flat: FlatBetSettings, region: Region) {
 }
 
 /**
- * Tính số lần trúng và tiền thắng cho một cược
+ * ✅ LOGIC ĐÁ XIÊN CHÍNH XÁC
+ * - Xiên 2: Tính tất cả tổ hợp 2 số từ min count
+ * - Xiên 3: Tính tất cả tổ hợp 3 số từ min count
+ * - Xiên 4: Tính tất cả tổ hợp 4 số từ min count
  */
 function calculateWin(
     bet: ParsedBet,
@@ -214,17 +188,14 @@ function calculateWin(
     
     const numbers = Array.isArray(bet.numbers) ? bet.numbers : [bet.numbers];
     const numDigits = numbers[0]?.length || 2;
-    
     const suffix = getRegionSuffix(region);
     
-    // Helper để lấy giá trị win rate theo region
     const getWinRate = (type: string, defaultVal: number): number => {
         const key = `win${type}${suffix}` as keyof FlatBetSettings;
         const val = flatSettings[key];
         return typeof val === 'number' ? val : defaultVal;
     };
     
-    // Xác định win rate dựa trên loại cược
     let winRate = 75;
     
     switch (bet.type) {
@@ -260,78 +231,213 @@ function calculateWin(
             break;
     }
     
-    // Dò số trúng - LOGIC KHÁC NHAU CHO TỪNG LOẠI CƯỢC
-    for (const provinceName of bet.provinces) {
-        const prizes = resultsMap[provinceName];
-        if (!prizes) continue;
+    // ============ LOGIC RIÊNG CHO ĐÁ XIÊN ============
+    if (bet.type === 'Đá xiên') {
+        const allDigits: string[] = [];
         
-        // Lấy danh sách số cần dò TÙY THEO LOẠI CƯỢC
-        let digitsToCheck: string[] = [];
-        
-        switch (bet.type) {
-            case 'Đầu':
-                // Đầu: CHỈ dò giải 8 (2 số cuối)
-                digitsToCheck = getHeadPrizeDigits(prizes);
-                break;
-                
-            case 'Đuôi':
-                // Đuôi: CHỈ dò giải ĐB (2 số cuối)
-                digitsToCheck = getTailPrizeDigits(prizes);
-                break;
-                
-            case 'Xỉu chủ đầu':
-            case 'Xỉu chủ đảo đầu':
-                // Xỉu chủ đầu: CHỈ dò giải 7 (3 số cuối)
-                digitsToCheck = getXiuChuHeadDigits(prizes);
-                break;
-                
-            case 'Xỉu chủ đuôi':
-            case 'Xỉu chủ đảo đuôi':
-                // Xỉu chủ đuôi: CHỈ dò giải ĐB (3 số cuối)
-                digitsToCheck = getXiuChuTailDigits(prizes);
-                break;
-                
-            case 'Bao lô':
-            case 'Bao đảo':
-                // Bao lô: dò TẤT CẢ các giải (18 lô MN/MT, 27 lô MB)
-                if (numDigits === 2) {
-                    digitsToCheck = getAllLo2Digits(prizes);
-                } else if (numDigits === 3) {
-                    digitsToCheck = getAllLo3Digits(prizes);
-                } else if (numDigits === 4) {
-                    digitsToCheck = getAllLo4Digits(prizes);
-                }
-                break;
-
-            case 'Đá thẳng':
-            case 'Đá xiên':
-                // Đá: dò TẤT CẢ 18 lô (2 số cuối)
-                digitsToCheck = getAllLo2Digits(prizes);
-                break;
-                
-            default:
-                // Mặc định: dùng hàm cũ
-                digitsToCheck = getLastNDigits(prizes, numDigits);
+        for (const provinceName of bet.provinces) {
+            const prizes = resultsMap[provinceName];
+            if (!prizes) continue;
+            
+            const digitsFromProvince = getAllLo2Digits(prizes);
+            allDigits.push(...digitsFromProvince);
         }
         
-        // Đếm số lần trúng
-        for (const num of numbers) {
-            const count = digitsToCheck.filter(d => d === num).length;
-            winCount += count;
+        const countMap: Record<string, number> = {};
+        for (const digit of allDigits) {
+            countMap[digit] = (countMap[digit] || 0) + 1;
+        }
+        
+        if (numbers.length === 2) {
+            // ===== XIÊN 2 =====
+            const [n1, n2] = numbers;
+            const c1 = countMap[n1] || 0;
+            const c2 = countMap[n2] || 0;
+            const minCount = Math.min(c1, c2);
+            
+            winCount = minCount;
+            if (winCount > 0) {
+                winAmount = winCount * bet.point * 1000 * 550;
+            }
+        } 
+        else if (numbers.length === 3) {
+            // ===== XIÊN 3 + XIÊN 2 =====
+            const [n1, n2, n3] = numbers;
+            const c1 = countMap[n1] || 0;
+            const c2 = countMap[n2] || 0;
+            const c3 = countMap[n3] || 0;
+            
+            let totalAmount = 0;
+            let totalCount = 0;
+            
+            // Xiên 3: Giá = 550 × 2
+            const minCount3 = Math.min(c1, c2, c3);
+            if (minCount3 > 0) {
+                totalAmount += minCount3 * bet.point * 1000 * (550 * 2);
+                totalCount += minCount3;
+            }
+            
+            // Xiên 2 - 3 tổ hợp (chỉ tính từ cặp có CẢ 2 số đều có thừa sau xiên 3)
+            // Phần thừa
+            const remain1 = Math.max(0, c1 - minCount3);
+            const remain2 = Math.max(0, c2 - minCount3);
+            const remain3 = Math.max(0, c3 - minCount3);
+            
+            // Xiên 2 chỉ tính nếu cả 2 số đều có thừa, nhưng lấy min(cX, cY) của gốc
+            if (remain1 > 0 && remain2 > 0) {
+                const minCount2_12 = Math.min(c1, c2);
+                totalAmount += minCount2_12 * bet.point * 1000 * 550;
+                totalCount += minCount2_12;
+            }
+            if (remain1 > 0 && remain3 > 0) {
+                const minCount2_13 = Math.min(c1, c3);
+                totalAmount += minCount2_13 * bet.point * 1000 * 550;
+                totalCount += minCount2_13;
+            }
+            if (remain2 > 0 && remain3 > 0) {
+                const minCount2_23 = Math.min(c2, c3);
+                totalAmount += minCount2_23 * bet.point * 1000 * 550;
+                totalCount += minCount2_23;
+            }
+            
+            winCount = totalCount;
+            winAmount = totalAmount;
+        }
+        else if (numbers.length === 4) {
+            // ===== XIÊN 4 + XIÊN 3 + XIÊN 2 =====
+            const [n1, n2, n3, n4] = numbers;
+            const c1 = countMap[n1] || 0;
+            const c2 = countMap[n2] || 0;
+            const c3 = countMap[n3] || 0;
+            const c4 = countMap[n4] || 0;
+            
+            let totalAmount = 0;
+            let totalCount = 0;
+            
+            // Xiên 4: Giá = 550 × 4
+            const minCount4 = Math.min(c1, c2, c3, c4);
+            if (minCount4 > 0) {
+                totalAmount += minCount4 * bet.point * 1000 * (550 * 4);
+                totalCount += minCount4;
+            }
+            
+            // Xiên 3 - 4 tổ hợp (chỉ tính nếu có phần thừa sau xiên 4)
+            const remain1 = Math.max(0, c1 - minCount4);
+            const remain2 = Math.max(0, c2 - minCount4);
+            const remain3 = Math.max(0, c3 - minCount4);
+            const remain4 = Math.max(0, c4 - minCount4);
+            
+            if (remain1 > 0 && remain2 > 0 && remain3 > 0) {
+                const minCount3_123 = Math.min(c1, c2, c3);
+                totalAmount += minCount3_123 * bet.point * 1000 * (550 * 2);
+                totalCount += minCount3_123;
+            }
+            if (remain1 > 0 && remain2 > 0 && remain4 > 0) {
+                const minCount3_124 = Math.min(c1, c2, c4);
+                totalAmount += minCount3_124 * bet.point * 1000 * (550 * 2);
+                totalCount += minCount3_124;
+            }
+            if (remain1 > 0 && remain3 > 0 && remain4 > 0) {
+                const minCount3_134 = Math.min(c1, c3, c4);
+                totalAmount += minCount3_134 * bet.point * 1000 * (550 * 2);
+                totalCount += minCount3_134;
+            }
+            if (remain2 > 0 && remain3 > 0 && remain4 > 0) {
+                const minCount3_234 = Math.min(c2, c3, c4);
+                totalAmount += minCount3_234 * bet.point * 1000 * (550 * 2);
+                totalCount += minCount3_234;
+            }
+            
+            // Xiên 2 - 6 tổ hợp (chỉ tính nếu cả 2 số có thừa)
+            if (remain1 > 0 && remain2 > 0) {
+                const minCount2_12 = Math.min(c1, c2);
+                totalAmount += minCount2_12 * bet.point * 1000 * 550;
+                totalCount += minCount2_12;
+            }
+            if (remain1 > 0 && remain3 > 0) {
+                const minCount2_13 = Math.min(c1, c3);
+                totalAmount += minCount2_13 * bet.point * 1000 * 550;
+                totalCount += minCount2_13;
+            }
+            if (remain1 > 0 && remain4 > 0) {
+                const minCount2_14 = Math.min(c1, c4);
+                totalAmount += minCount2_14 * bet.point * 1000 * 550;
+                totalCount += minCount2_14;
+            }
+            if (remain2 > 0 && remain3 > 0) {
+                const minCount2_23 = Math.min(c2, c3);
+                totalAmount += minCount2_23 * bet.point * 1000 * 550;
+                totalCount += minCount2_23;
+            }
+            if (remain2 > 0 && remain4 > 0) {
+                const minCount2_24 = Math.min(c2, c4);
+                totalAmount += minCount2_24 * bet.point * 1000 * 550;
+                totalCount += minCount2_24;
+            }
+            if (remain3 > 0 && remain4 > 0) {
+                const minCount2_34 = Math.min(c3, c4);
+                totalAmount += minCount2_34 * bet.point * 1000 * 550;
+                totalCount += minCount2_34;
+            }
+            
+            winCount = totalCount;
+            winAmount = totalAmount;
         }
     }
-    
-    // Tính tiền thắng
-    if (winCount > 0) {
-        winAmount = winCount * bet.point * 1000 * winRate;
+    // ============ LOGIC CHO CÁC LOẠI CƯỢC KHÁC ============
+    else {
+        for (const provinceName of bet.provinces) {
+            const prizes = resultsMap[provinceName];
+            if (!prizes) continue;
+            
+            let digitsToCheck: string[] = [];
+            
+            switch (bet.type) {
+                case 'Đầu':
+                    digitsToCheck = getHeadPrizeDigits(prizes);
+                    break;
+                case 'Đuôi':
+                    digitsToCheck = getTailPrizeDigits(prizes);
+                    break;
+                case 'Xỉu chủ đầu':
+                case 'Xỉu chủ đảo đầu':
+                    digitsToCheck = getXiuChuHeadDigits(prizes);
+                    break;
+                case 'Xỉu chủ đuôi':
+                case 'Xỉu chủ đảo đuôi':
+                    digitsToCheck = getXiuChuTailDigits(prizes);
+                    break;
+                case 'Bao lô':
+                case 'Bao đảo':
+                    if (numDigits === 2) {
+                        digitsToCheck = getAllLo2Digits(prizes);
+                    } else if (numDigits === 3) {
+                        digitsToCheck = getAllLo3Digits(prizes);
+                    } else if (numDigits === 4) {
+                        digitsToCheck = getAllLo4Digits(prizes);
+                    }
+                    break;
+                case 'Đá thẳng':
+                    digitsToCheck = getAllLo2Digits(prizes);
+                    break;
+                default:
+                    digitsToCheck = getLastNDigits(prizes, numDigits);
+            }
+            
+            for (const num of numbers) {
+                const count = digitsToCheck.filter(d => d === num).length;
+                winCount += count;
+            }
+        }
+        
+        if (winCount > 0) {
+            winAmount = winCount * bet.point * 1000 * winRate;
+        }
     }
     
     return { winCount, winAmount };
 }
 
-/**
- * Tổng hợp theo loại cược
- */
 function calculateTotalsByType(bets: ParsedBet[]): TotalsByType {
     const emptyTotal = (): TypeTotal => ({ amount: 0, winAmount: 0, winCount: 0 });
     
@@ -348,7 +454,6 @@ function calculateTotalsByType(bets: ParsedBet[]): TotalsByType {
     for (const bet of bets) {
         let category: keyof TotalsByType = "total";
         
-        // Phân loại
         if (bet.type === 'Đầu' || bet.type === 'Đuôi' || bet.type === 'Đầu đuôi') {
             category = "2c-dd";
         } else if (bet.type === 'Bao lô' || bet.type === 'Bao đảo') {
@@ -364,7 +469,6 @@ function calculateTotalsByType(bets: ParsedBet[]): TotalsByType {
             category = "dax";
         }
         
-        // Cộng dồn
         totals[category].amount += bet.amount;
         totals[category].winAmount += bet.winAmount || 0;
         totals[category].winCount += bet.winCount || 0;
