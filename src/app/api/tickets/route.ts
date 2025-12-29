@@ -568,59 +568,36 @@ function calculateWin(
                     }
                 }
                 
-                // Tính tổng tích các cặp QUA ĐÀI (số phải ở đài khác nhau)
-                let totalProduct = 0;
+                // Tính tổng count mỗi số (gộp tất cả các đài)
+                const totalCountPerNumber: Record<string, number> = {};
+                for (const num of numbers) {
+                    totalCountPerNumber[num] = 0;
+                    for (const provinceName of bet.provinces) {
+                        totalCountPerNumber[num] += countByProvince[provinceName]?.[num] || 0;
+                    }
+                }
+                
+                // Tính tổng vòng = Σ min(count_A, count_B) cho mỗi cặp
+                let totalVong = 0;
                 
                 for (let i = 0; i < numbers.length; i++) {
                     for (let j = i + 1; j < numbers.length; j++) {
                         const numA = numbers[i];
                         const numB = numbers[j];
                         
-                        // Tìm tất cả cặp đài khác nhau
-                        for (const provA of bet.provinces) {
-                            for (const provB of bet.provinces) {
-                                if (provA === provB) continue; // Chỉ tính cặp qua đài
-                                
-                                const countA = countByProvince[provA]?.[numA] || 0;
-                                const countB = countByProvince[provB]?.[numB] || 0;
-                                
-                                if (countA > 0 && countB > 0) {
-                                    totalProduct += countA * countB;
-                                }
-                            }
+                        const countA = totalCountPerNumber[numA] || 0;
+                        const countB = totalCountPerNumber[numB] || 0;
+                        
+                        if (countA > 0 && countB > 0) {
+                            totalVong += Math.min(countA, countB);
                         }
                     }
                 }
                 
-                // KHÔNG chia 2 - vì loop đã chỉ đếm 1 chiều (i < j)
-                
-                if (totalProduct > 0) {
-                    // Đếm số lượng số trúng
-                    const totalCountPerNumber: Record<string, number> = {};
-                    for (const num of numbers) {
-                        totalCountPerNumber[num] = 0;
-                        for (const provinceName of bet.provinces) {
-                            totalCountPerNumber[num] += countByProvince[provinceName]?.[num] || 0;
-                        }
-                    }
-                    
-                    const winningNumbers = numbers.filter(num => totalCountPerNumber[num] > 0);
-                    const winningCount = winningNumbers.length;
-                    
-                    // Tính số vòng
-                    let vong = totalProduct;
-                    
-                    // Trừ min(counts) khi: 2/4 trúng HOẶC 4/4 trúng
-                    // Không trừ khi: 3/4 trúng
-                    if (winningCount === 2 || winningCount === 4) {
-                        const winningCounts = winningNumbers.map(n => totalCountPerNumber[n]);
-                        const minCount = Math.min(...winningCounts);
-                        vong = totalProduct - minCount;
-                    }
-                    
-                    // Tiền trúng = vòng × winRate × điểm × 1000
-                    winAmount = vong * winRate * bet.point * 1000;
-                    winCount = vong;
+                if (totalVong > 0) {
+                    // Tiền trúng = tổng vòng × winRate × điểm × 1000
+                    winAmount = totalVong * winRate * bet.point * 1000;
+                    winCount = totalVong;
                 }
             }
         }
