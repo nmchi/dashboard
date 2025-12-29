@@ -188,10 +188,22 @@ function createBets(
     
     // ========================================
     // VALIDATION: Đá xiên
+    // - Miền Bắc KHÔNG có Đá xiên
     // - Yêu cầu ít nhất 2 đài
     // - Yêu cầu 2-4 số
     // ========================================
     if (betTypeName === 'Đá xiên') {
+        // Miền Bắc không có Đá xiên
+        if (context.region === Region.MB) {
+            context.errors.push({
+                message: `Miền Bắc không có kiểu cược Đá xiên`,
+                type: 'Đá xiên',
+                numbers: numbers,
+                provinces: provinceNames,
+            });
+            return bets; // Không tạo bet
+        }
+        
         // Validate số đài
         if (provinceCount < 2) {
             context.errors.push({
@@ -392,6 +404,25 @@ function createSingleBet(
 }
 
 /**
+ * Lấy số lô theo miền và số chữ số
+ * Miền Nam/Trung: 18 lô (2 số), 17 lô (3 số), 16 lô (4 số)
+ * Miền Bắc: 27 lô (2 số), 23 lô (3 số), 20 lô (4 số)
+ */
+function getLoCount(numDigits: number, region: Region): number {
+    if (region === Region.MB) {
+        if (numDigits === 2) return 27;
+        if (numDigits === 3) return 23;
+        if (numDigits === 4) return 20;
+    } else {
+        // MN, MT
+        if (numDigits === 2) return 18;
+        if (numDigits === 3) return 17;
+        if (numDigits === 4) return 16;
+    }
+    return 1;
+}
+
+/**
  * Tính tiền thu từ khách (đã × price%)
  */
 function calculateAmount(
@@ -410,12 +441,17 @@ function calculateAmount(
     const numberOfDigits = numArray[0].length;
     const numberCount = numArray.length;
     
+    // Lấy số lô theo miền
+    const loCount = getLoCount(numberOfDigits, region);
+    
     // Tính tiền gốc (bodyprice)
     let bodyprice = 0;
     
     switch (betType) {
         case 'Đá xiên': {
-            const basePrice = DEFAULT_PRICE * 36;
+            // Đá xiên: dùng số lô 2 số × 2 (vì ghép cặp)
+            const loCount2 = getLoCount(2, region);
+            const basePrice = DEFAULT_PRICE * loCount2 * 2; // 36 cho MN/MT, 54 cho MB
             const combinationFactor = numberCount === 2 ? 1 : (numberCount * (numberCount - 1)) / 2;
             let stationMultiplier = 1;
             if (provinceCount === 3) stationMultiplier = 3;
@@ -435,21 +471,22 @@ function calculateAmount(
             
         case 'Đá':
         case 'Đá thẳng': {
-            const basePrice = DEFAULT_PRICE * 36;
+            // Đá thẳng: dùng số lô 2 số × 2
+            const loCount2 = getLoCount(2, region);
+            const basePrice = DEFAULT_PRICE * loCount2 * 2; // 36 cho MN/MT, 54 cho MB
             const combinationFactor = numberCount === 2 ? 1 : (numberCount * (numberCount - 1)) / 2;
             bodyprice = (basePrice * combinationFactor * point) * provinceCount;
             return Math.round(bodyprice * (prices.priceda / 100));
         }
             
         case 'Bao lô':
+            // Bao lô: dùng số lô theo miền
+            bodyprice = (point * DEFAULT_PRICE * loCount) * provinceCount;
             if (numberOfDigits === 2) {
-                bodyprice = (point * DEFAULT_PRICE * 18) * provinceCount;
                 return Math.round(bodyprice * (prices.price2lo / 100));
             } else if (numberOfDigits === 3) {
-                bodyprice = (point * DEFAULT_PRICE * 17) * provinceCount;
                 return Math.round(bodyprice * (prices.price3lo / 100));
             } else if (numberOfDigits === 4) {
-                bodyprice = (point * DEFAULT_PRICE * 16) * provinceCount;
                 return Math.round(bodyprice * (prices.price4lo / 100));
             }
             break;
