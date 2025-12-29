@@ -385,7 +385,7 @@ function calculateWin(
                     // Chỉ tính nếu cả 2 số đều ra
                     if (count1 > 0 && count2 > 0) {
                         const combinationWinCount = count1 * 0.5 + count2 * 0.5;
-                        totalAmount += combinationWinCount * bet.point * 1000 * 750;
+                        totalAmount += combinationWinCount * bet.point * 1000 * winRate;
                         totalCount += combinationWinCount;
                     }
                 }
@@ -421,7 +421,7 @@ function calculateWin(
             
             winCount = minCount;
             if (winCount > 0) {
-                winAmount = winCount * bet.point * 1000 * 550;
+                winAmount = winCount * bet.point * 1000 * winRate;
             }
         } 
         else if (numbers.length === 3) {
@@ -437,7 +437,7 @@ function calculateWin(
             // Xiên 3: Giá = 550 × 2
             const minCount3 = Math.min(c1, c2, c3);
             if (minCount3 > 0) {
-                totalAmount += minCount3 * bet.point * 1000 * (550 * 2);
+                totalAmount += minCount3 * bet.point * 1000 * (winRate * 2);
                 totalCount += minCount3;
             }
             
@@ -450,17 +450,17 @@ function calculateWin(
             // Xiên 2 chỉ tính nếu cả 2 số đều có thừa, nhưng lấy min(cX, cY) của gốc
             if (remain1 > 0 && remain2 > 0) {
                 const minCount2_12 = Math.min(c1, c2);
-                totalAmount += minCount2_12 * bet.point * 1000 * 550;
+                totalAmount += minCount2_12 * bet.point * 1000 * winRate;
                 totalCount += minCount2_12;
             }
             if (remain1 > 0 && remain3 > 0) {
                 const minCount2_13 = Math.min(c1, c3);
-                totalAmount += minCount2_13 * bet.point * 1000 * 550;
+                totalAmount += minCount2_13 * bet.point * 1000 * winRate;
                 totalCount += minCount2_13;
             }
             if (remain2 > 0 && remain3 > 0) {
                 const minCount2_23 = Math.min(c2, c3);
-                totalAmount += minCount2_23 * bet.point * 1000 * 550;
+                totalAmount += minCount2_23 * bet.point * 1000 * winRate;
                 totalCount += minCount2_23;
             }
             

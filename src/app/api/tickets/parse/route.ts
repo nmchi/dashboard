@@ -264,7 +264,7 @@ function calculateWin(
                     // Chỉ tính nếu cả 2 số đều ra
                     if (count1 > 0 && count2 > 0) {
                         const combinationWinCount = count1 * 0.5 + count2 * 0.5;
-                        totalAmount += combinationWinCount * bet.point * 1000 * 750;
+                        totalAmount += combinationWinCount * bet.point * 1000 * winRate;
                         totalCount += combinationWinCount;
                     }
                 }

@@ -217,14 +217,13 @@ export default function ParserPage() {
             let xac: number;
             
             if (bet.type === 'Đá xiên') {
-                // Đá xiên: công thức riêng
-                // XÁC = point × 1000 × 72 × combinationFactor × stationMultiplier
+                const loCount2 = getLoCount(2, region);
                 const combinationFactor = numCount === 2 ? 1 : (numCount * (numCount - 1)) / 2;
                 let stationMultiplier = 1;
                 if (provinceCount === 3) stationMultiplier = 3;
                 else if (provinceCount >= 4) stationMultiplier = 6;
                 
-                xac = bet.point * 1000 * 72 * combinationFactor * stationMultiplier;
+                xac = bet.point * 1000 * (loCount2 * 2) * combinationFactor * stationMultiplier * 2;
             } else if (bet.type === 'Đá' || bet.type === 'Đá thẳng') {
                 // Đá thẳng: dùng combinationFactor (số cặp) thay vì numCount
                 // XÁC = point × 1000 × provinceCount × combinationFactor × 36
