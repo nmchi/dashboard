@@ -138,12 +138,54 @@ export async function GET(request: NextRequest) {
   const autoProcessStr = searchParams.get("autoProcess");
   body.autoProcess = autoProcessStr !== "false";
 
-  // Redirect to POST handler
-  const postRequest = new NextRequest(request.url, {
-    method: "POST",
-    body: JSON.stringify(body),
-    headers: { "Content-Type": "application/json" },
-  });
+  // Xử lý trực tiếp thay vì redirect (để giữ auth context)
+  try {
+    // Parse date
+    let date: Date;
+    if (body.date) {
+      date = new Date(body.date as string);
+      if (isNaN(date.getTime())) {
+        return NextResponse.json(
+          { success: false, error: "Invalid date format. Use YYYY-MM-DD" },
+          { status: 400 }
+        );
+      }
+    } else {
+      date = new Date();
+    }
 
-  return POST(postRequest);
+    // Parse regions
+    let regions: Region[];
+    if (body.region) {
+      const region = (body.region as string).toUpperCase();
+      if (!["MN", "MT", "MB"].includes(region)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid region. Use MN, MT, or MB" },
+          { status: 400 }
+        );
+      }
+      regions = [region as Region];
+    } else {
+      regions = [Region.MN, Region.MT, Region.MB];
+    }
+
+    // Parse autoProcess (mặc định = true)
+    const autoProcess = body.autoProcess !== false;
+
+    // Crawl + Tự động dò số
+    const result = await crawlLotteryResults(date, regions, autoProcess);
+
+    return NextResponse.json({
+      ...result,
+      message: autoProcess 
+        ? "Crawl và dò số hoàn tất" 
+        : "Crawl hoàn tất (không dò số)",
+    });
+  } catch (error) {
+    console.error("Crawl error:", error);
+    return NextResponse.json(
+      { success: false, error: String(error) },
+      { status: 500 }
+    );
+  }
 }
