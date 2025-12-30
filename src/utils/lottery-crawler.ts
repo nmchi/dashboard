@@ -6,6 +6,8 @@
  * - MN: https://xosodaiphat.com/xsmn-{DD}-{MM}-{YYYY}.html
  * - MT: https://xosodaiphat.com/xsmt-{DD}-{MM}-{YYYY}.html
  * - MB: https://xosodaiphat.com/xsmb-{DD}-{MM}-{YYYY}.html
+ * 
+ * ✅ TỰ ĐỘNG DÒ SỐ sau khi crawl thành công VÀ có đầy đủ kết quả
  */
 
 import { PrismaClient, Region, LotteryProvince } from "@prisma/client";
@@ -15,6 +17,97 @@ const prisma = new PrismaClient();
 interface CrawlResult {
   province: LotteryProvince;
   prizes: Record<string, string[]>;
+  isComplete: boolean; // Đã có đầy đủ giải chưa
+}
+
+/**
+ * Các giải bắt buộc phải có cho từng miền
+ */
+const REQUIRED_PRIZES = {
+  // Miền Nam/Trung: G.8, G.7, G.6, G.5, G.4, G.3, G.2, G.1, G.ĐB
+  MN: ["G.8", "G.7", "G.6", "G.5", "G.4", "G.3", "G.2", "G.1", "G.ĐB"],
+  MT: ["G.8", "G.7", "G.6", "G.5", "G.4", "G.3", "G.2", "G.1", "G.ĐB"],
+  // Miền Bắc: G.ĐB, G.1, G.2, G.3, G.4, G.5, G.6, G.7 (không có G.8)
+  MB: ["G.7", "G.6", "G.5", "G.4", "G.3", "G.2", "G.1", "G.ĐB"],
+};
+
+/**
+ * Số lượng số tối thiểu cho mỗi giải (MN/MT)
+ */
+const MIN_NUMBERS_PER_PRIZE_MNMT: Record<string, number> = {
+  "G.8": 1,
+  "G.7": 1,
+  "G.6": 3,
+  "G.5": 1,
+  "G.4": 7,
+  "G.3": 2,
+  "G.2": 1,
+  "G.1": 1,
+  "G.ĐB": 1,
+};
+
+/**
+ * Số lượng số tối thiểu cho mỗi giải (MB)
+ */
+const MIN_NUMBERS_PER_PRIZE_MB: Record<string, number> = {
+  "G.7": 4,
+  "G.6": 3,
+  "G.5": 6,
+  "G.4": 4,
+  "G.3": 6,
+  "G.2": 2,
+  "G.1": 1,
+  "G.ĐB": 1,
+};
+
+/**
+ * Kiểm tra kết quả xổ số có đầy đủ chưa
+ */
+function isResultComplete(prizes: Record<string, string[]>, region: Region): boolean {
+  const requiredPrizes = REQUIRED_PRIZES[region];
+  const minNumbers = region === Region.MB ? MIN_NUMBERS_PER_PRIZE_MB : MIN_NUMBERS_PER_PRIZE_MNMT;
+  
+  for (const prizeName of requiredPrizes) {
+    const prizeNumbers = prizes[prizeName];
+    
+    // Kiểm tra giải có tồn tại không
+    if (!prizeNumbers || !Array.isArray(prizeNumbers)) {
+      console.log(`    ⚠ Thiếu giải: ${prizeName}`);
+      return false;
+    }
+    
+    // Kiểm tra số lượng số
+    const minCount = minNumbers[prizeName] || 1;
+    if (prizeNumbers.length < minCount) {
+      console.log(`    ⚠ Giải ${prizeName} chưa đủ số: ${prizeNumbers.length}/${minCount}`);
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+/**
+ * Lấy danh sách giải còn thiếu
+ */
+function getMissingPrizes(prizes: Record<string, string[]>, region: Region): string[] {
+  const requiredPrizes = REQUIRED_PRIZES[region];
+  const missing: string[] = [];
+  
+  for (const prizeName of requiredPrizes) {
+    if (!prizes[prizeName] || prizes[prizeName].length === 0) {
+      missing.push(prizeName);
+    }
+  }
+  
+  return missing;
+}
+
+interface ProcessResult {
+  processed: number;
+  success: number;
+  failed: number;
+  totalWinAmount: number;
 }
 
 /**
@@ -254,7 +347,13 @@ function parseMNMT(
   // === Chuyển Map thành array ===
   for (const [province, prizes] of prizesMap) {
     if (Object.keys(prizes).length > 0) {
-      results.push({ province, prizes });
+      const isComplete = isResultComplete(prizes, region);
+      results.push({ province, prizes, isComplete });
+      
+      if (!isComplete) {
+        const missing = getMissingPrizes(prizes, region);
+        console.log(`    ⚠ ${province.name}: Chưa đủ kết quả (thiếu: ${missing.join(', ')})`);
+      }
     }
   }
 
@@ -264,15 +363,6 @@ function parseMNMT(
 /**
  * Parse HTML cho Miền Bắc
  * Cấu trúc: Chỉ 1 đài, bảng dọc với tên giải và số
- * 
- * HTML structure:
- * <table class="table table-bordered table-striped table-xsmb">
- *   <tbody>
- *     <tr><td>G.ĐB</td><td><span id=mb_prize_DB_item_0>75199</span></td></tr>
- *     <tr><td>G.1</td><td><span>30479</span></td></tr>
- *     ...
- *   </tbody>
- * </table>
  */
 function parseMB(
   html: string,
@@ -309,7 +399,6 @@ function parseMB(
   const prizes: Record<string, string[]> = {};
 
   // Parse từng hàng để lấy giải và số
-  // Split by <tr để tách từng hàng
   const rowParts = tableHtml.split(/<tr[^>]*>/i);
   
   for (const rowHtml of rowParts) {
@@ -319,14 +408,12 @@ function parseMB(
     if (rowHtml.includes("Mã ĐB") || rowHtml.includes("prizeCode")) continue;
     
     // Tìm tên giải trong td đầu tiên
-    // Pattern: <td>G.ĐB</td> hoặc <td>G.1</td>
     const prizeMatch = rowHtml.match(/<td[^>]*>\s*(G\.(?:\d|ĐB))\s*(?:<\/td>|<td)/i);
     if (!prizeMatch) continue;
     
     const prizeName = prizeMatch[1].trim();
     
     // Lấy tất cả số từ các span trong hàng
-    // Pattern: <span id=mb_prize_X_item_Y class="...">số</span>
     const spanRegex = /<span[^>]*>\s*(\d{2,6})\s*<\/span>/gi;
     const numbers: string[] = [];
     let spanMatch;
@@ -344,22 +431,50 @@ function parseMB(
   if (Object.keys(prizes).length > 0) {
     const totalNumbers = Object.values(prizes).flat().length;
     console.log(`  📋 Tổng: ${Object.keys(prizes).length} giải, ${totalNumbers} số`);
-    results.push({ province: mbProvince, prizes });
+    
+    const isComplete = isResultComplete(prizes, Region.MB);
+    results.push({ province: mbProvince, prizes, isComplete });
+    
+    if (!isComplete) {
+      const missing = getMissingPrizes(prizes, Region.MB);
+      console.log(`    ⚠ ${mbProvince.name}: Chưa đủ kết quả (thiếu: ${missing.join(', ')})`);
+    }
   }
 
   return results;
 }
 
 /**
+ * Xử lý tickets pending cho một region và ngày cụ thể
+ * (Import động để tránh circular dependency)
+ */
+async function processTicketsForRegion(
+  date: Date,
+  region: Region
+): Promise<ProcessResult> {
+  try {
+    // Dynamic import để tránh circular dependency
+    const { processPendingTickets } = await import("./ticket-processor");
+    return await processPendingTickets(date, region);
+  } catch (error) {
+    console.error(`  ⚠ Lỗi dò số ${region}:`, error);
+    return { processed: 0, success: 0, failed: 0, totalWinAmount: 0 };
+  }
+}
+
+/**
  * Crawl kết quả xổ số từ xosodaiphat.com
+ * ✅ TỰ ĐỘNG DÒ SỐ sau khi crawl thành công VÀ có đầy đủ kết quả
  */
 export async function crawlLotteryResults(
   date: Date = new Date(),
-  regions: Region[] = [Region.MN, Region.MT, Region.MB]
+  regions: Region[] = [Region.MN, Region.MT, Region.MB],
+  autoProcessTickets: boolean = true // Mặc định TỰ ĐỘNG dò số
 ): Promise<{
   success: boolean;
   date: string;
-  results: { region: Region; saved: number; errors: string[] }[];
+  results: { region: Region; saved: number; complete: number; incomplete: number; errors: string[] }[];
+  ticketProcessing?: { region: Region; processed: number; success: number; totalWinAmount: number }[];
 }> {
   const dateStr = formatDateForUrl(date);
   const dateDisplay = date.toISOString().split("T")[0];
@@ -367,13 +482,14 @@ export async function crawlLotteryResults(
   console.log(`\n🎰 Crawl kết quả xổ số ngày ${dateDisplay}`);
 
   const provincesCache = await prisma.lotteryProvince.findMany();
-  const allResults: { region: Region; saved: number; errors: string[] }[] = [];
+  const allResults: { region: Region; saved: number; complete: number; incomplete: number; errors: string[] }[] = [];
+  const ticketResults: { region: Region; processed: number; success: number; totalWinAmount: number }[] = [];
 
   for (const region of regions) {
     console.log(`\n📍 ${region}`);
     console.log("─".repeat(40));
 
-    const regionResult = { region, saved: 0, errors: [] as string[] };
+    const regionResult = { region, saved: 0, complete: 0, incomplete: 0, errors: [] as string[] };
 
     const regionCode = region === Region.MB ? "xsmb" : region === Region.MT ? "xsmt" : "xsmn";
     const url = `https://xosodaiphat.com/${regionCode}-${dateStr}.html`;
@@ -406,6 +522,10 @@ export async function crawlLotteryResults(
         
       console.log(`  Tổng: ${crawlResults.length} tỉnh có kết quả`);
 
+      // Đếm số tỉnh có kết quả đầy đủ
+      let completeCount = 0;
+      let incompleteCount = 0;
+
       for (const result of crawlResults) {
         try {
           // Tạo date với UTC để tránh timezone shift
@@ -431,14 +551,52 @@ export async function crawlLotteryResults(
 
           const prizeCount = Object.keys(result.prizes).length;
           const totalNumbers = Object.values(result.prizes).flat().length;
-          console.log(`  💾 Lưu: ${result.province.name} (${prizeCount} giải, ${totalNumbers} số)`);
+          const statusIcon = result.isComplete ? "✅" : "⏳";
+          console.log(`  ${statusIcon} Lưu: ${result.province.name} (${prizeCount} giải, ${totalNumbers} số)`);
+          
           regionResult.saved++;
+          if (result.isComplete) {
+            completeCount++;
+          } else {
+            incompleteCount++;
+          }
         } catch (error) {
           const msg = `Lỗi lưu ${result.province.name}: ${error}`;
           console.log(`  ✗ ${msg}`);
           regionResult.errors.push(msg);
         }
       }
+
+      regionResult.complete = completeCount;
+      regionResult.incomplete = incompleteCount;
+
+      // ✅ CHỈ DÒ SỐ KHI TẤT CẢ CÁC TỈNH ĐỀU CÓ KẾT QUẢ ĐẦY ĐỦ
+      if (autoProcessTickets && regionResult.saved > 0) {
+        if (incompleteCount === 0) {
+          console.log(`\n  🔍 Đang dò số cho tickets ${region}...`);
+          const processResult = await processTicketsForRegion(date, region);
+          
+          ticketResults.push({
+            region,
+            processed: processResult.processed,
+            success: processResult.success,
+            totalWinAmount: processResult.totalWinAmount,
+          });
+          
+          if (processResult.processed > 0) {
+            console.log(`  ✅ Dò số: ${processResult.success}/${processResult.processed} tickets`);
+            if (processResult.totalWinAmount > 0) {
+              console.log(`  💰 Tổng thắng: ${processResult.totalWinAmount.toLocaleString('vi-VN')}đ`);
+            }
+          } else {
+            console.log(`  ℹ Không có ticket pending cho ${region}`);
+          }
+        } else {
+          console.log(`\n  ⏳ Chưa dò số ${region}: ${incompleteCount}/${regionResult.saved} tỉnh chưa đủ kết quả`);
+          console.log(`  ℹ Sẽ dò số ở lần crawl tiếp theo khi có đầy đủ kết quả`);
+        }
+      }
+
     } catch (error) {
       const msg = `Lỗi fetch: ${error}`;
       console.log(`  ✗ ${msg}`);
@@ -449,9 +607,22 @@ export async function crawlLotteryResults(
   }
 
   const totalSaved = allResults.reduce((sum, r) => sum + r.saved, 0);
+  const totalComplete = allResults.reduce((sum, r) => sum + r.complete, 0);
+  const totalIncomplete = allResults.reduce((sum, r) => sum + r.incomplete, 0);
   const totalErrors = allResults.reduce((sum, r) => sum + r.errors.length, 0);
+  const totalTicketsProcessed = ticketResults.reduce((sum, r) => sum + r.processed, 0);
+  const totalTicketsSuccess = ticketResults.reduce((sum, r) => sum + r.success, 0);
 
-  console.log(`\n✅ Tổng: ${totalSaved} tỉnh, ${totalErrors} lỗi\n`);
+  console.log(`\n${"═".repeat(50)}`);
+  console.log(`✅ Crawl: ${totalSaved} tỉnh (${totalComplete} đầy đủ, ${totalIncomplete} chưa đủ), ${totalErrors} lỗi`);
+  if (autoProcessTickets) {
+    if (totalTicketsProcessed > 0) {
+      console.log(`✅ Dò số: ${totalTicketsSuccess}/${totalTicketsProcessed} tickets`);
+    } else if (totalIncomplete > 0) {
+      console.log(`⏳ Chưa dò số: Đang chờ kết quả đầy đủ`);
+    }
+  }
+  console.log("");
 
   await prisma.$disconnect();
 
@@ -459,7 +630,8 @@ export async function crawlLotteryResults(
     success: totalErrors === 0,
     date: dateDisplay,
     results: allResults,
+    ...(autoProcessTickets && ticketResults.length > 0 ? { ticketProcessing: ticketResults } : {}),
   };
 }
 
-export { formatDateForUrl, normalizeString, findProvinceByName };
+export { formatDateForUrl, normalizeString, findProvinceByName, isResultComplete, getMissingPrizes };

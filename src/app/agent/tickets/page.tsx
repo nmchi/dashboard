@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession } from "@/lib/auth-client";
 import { TicketStatus, Region } from "@prisma/client";
 import Link from "next/link";
+import { RefreshCw, Loader2 } from "lucide-react";
 
 interface Player {
     id: string;
@@ -52,6 +53,7 @@ export default function TicketListPage() {
     
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [loading, setLoading] = useState(true);
+    const [processing, setProcessing] = useState(false);
     const [pagination, setPagination] = useState<Pagination>({
         page: 1,
         limit: 20,
@@ -122,6 +124,77 @@ export default function TicketListPage() {
         fetchTickets();
     }, [fetchTickets]);
 
+    // Xử lý dò số cho tickets pending
+    const handleProcessTickets = async () => {
+        if (!session?.user?.id) return;
+        
+        setProcessing(true);
+        
+        try {
+            // Lấy tất cả player IDs của agent
+            const playerIds = players.map(p => p.id);
+            
+            // Xử lý từng player
+            let totalProcessed = 0;
+            let totalSuccess = 0;
+            
+            for (const playerId of playerIds) {
+                const res = await fetch('/api/tickets/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: playerId }),
+                });
+                
+                const data = await res.json();
+                if (data.success && data.data) {
+                    totalProcessed += data.data.processed || 0;
+                    totalSuccess += data.data.success || 0;
+                }
+            }
+            
+            if (totalProcessed > 0) {
+                alert(`Đã dò số: ${totalSuccess}/${totalProcessed} tin nhắn thành công`);
+                fetchTickets(); // Refresh danh sách
+            } else {
+                alert('Không có tin nhắn nào cần dò số');
+            }
+            
+        } catch (error) {
+            console.error('Process tickets error:', error);
+            alert('Lỗi khi dò số');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    // Xử lý dò số cho 1 ticket cụ thể
+    const handleProcessSingleTicket = async (ticketId: string) => {
+        try {
+            const res = await fetch('/api/tickets/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ticketId }),
+            });
+            
+            const data = await res.json();
+            
+            if (data.success) {
+                if (data.error?.includes('Chưa có kết quả')) {
+                    alert('Chưa có kết quả xổ số cho ngày này');
+                } else {
+                    alert('Đã dò số thành công!');
+                    fetchTickets();
+                }
+            } else {
+                alert(data.error || 'Lỗi dò số');
+            }
+            
+        } catch (error) {
+            console.error('Process single ticket error:', error);
+            alert('Lỗi kết nối');
+        }
+    };
+
     const formatMoney = (amount: string | number) => {
         return new Intl.NumberFormat('vi-VN').format(Number(amount));
     };
@@ -165,6 +238,9 @@ export default function TicketListPage() {
         return names[region];
     };
 
+    // Đếm số pending tickets
+    const pendingCount = tickets.filter(t => t.status === TicketStatus.PENDING).length;
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -172,12 +248,28 @@ export default function TicketListPage() {
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Lịch Sử Tin</h1>
                     <p className="text-slate-500">Danh sách tin nhắn cược đã lưu</p>
                 </div>
-                <Link 
-                    href="/agent/parser"
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                    + Nhập tin nhắn
-                </Link>
+                <div className="flex gap-2">
+                    {/* Nút Dò Số */}
+                    <button
+                        onClick={handleProcessTickets}
+                        disabled={processing || pendingCount === 0}
+                        className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        {processing ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <RefreshCw className="h-4 w-4" />
+                        )}
+                        {processing ? 'Đang dò...' : `Dò số (${pendingCount})`}
+                    </button>
+                    
+                    <Link 
+                        href="/agent/parser"
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        + Nhập tin nhắn
+                    </Link>
+                </div>
             </div>
             
             {/* Filters */}
@@ -265,6 +357,19 @@ export default function TicketListPage() {
                                             <span className="text-sm text-slate-500">
                                                 📅 {new Date(ticket.drawDate).toLocaleDateString('vi-VN')}
                                             </span>
+                                            
+                                            {/* Nút dò số cho ticket pending */}
+                                            {ticket.status === TicketStatus.PENDING && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleProcessSingleTicket(ticket.id);
+                                                    }}
+                                                    className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs hover:bg-orange-200 transition-colors"
+                                                >
+                                                    🔍 Dò số
+                                                </button>
+                                            )}
                                         </div>
                                         <p className="font-mono text-sm bg-slate-100 p-2 rounded">
                                             {ticket.rawContent}
@@ -272,6 +377,13 @@ export default function TicketListPage() {
                                         <div className="mt-2 text-sm text-slate-600">
                                             {ticket.bets.length} cược • 
                                             Tiền thu: <strong className="text-blue-600">{formatMoney(ticket.totalAmount)}</strong>
+                                            {ticket.status === TicketStatus.COMPLETED && (
+                                                <>
+                                                    {' '}• Tiền thắng: <strong className="text-green-600">
+                                                        {formatMoney(ticket.bets.reduce((sum, b) => sum + Number(b.winAmount), 0))}
+                                                    </strong>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                     

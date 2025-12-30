@@ -4,9 +4,15 @@ import { crawlLotteryResults } from "@/utils/lottery-crawler";
 
 /**
  * POST /api/lottery/crawl
- * Body: { date?: string, region?: "MN" | "MT" | "MB" }
+ * Body: { 
+ *   date?: string, 
+ *   region?: "MN" | "MT" | "MB",
+ *   autoProcess?: boolean  // Mặc định true - tự động dò số
+ * }
  * 
- * GET /api/lottery/crawl?date=2024-01-15&region=MN
+ * GET /api/lottery/crawl?date=2024-01-15&region=MN&autoProcess=true
+ * 
+ * ✅ TỰ ĐỘNG DÒ SỐ cho tickets pending sau khi crawl thành công
  */
 export async function POST(request: NextRequest) {
   try {
@@ -41,10 +47,18 @@ export async function POST(request: NextRequest) {
       regions = [Region.MN, Region.MT, Region.MB];
     }
 
-    // Crawl
-    const result = await crawlLotteryResults(date, regions);
+    // Parse autoProcess (mặc định = true)
+    const autoProcess = body.autoProcess !== false;
 
-    return NextResponse.json(result);
+    // Crawl + Tự động dò số
+    const result = await crawlLotteryResults(date, regions, autoProcess);
+
+    return NextResponse.json({
+      ...result,
+      message: autoProcess 
+        ? "Crawl và dò số hoàn tất" 
+        : "Crawl hoàn tất (không dò số)",
+    });
   } catch (error) {
     console.error("Crawl error:", error);
     return NextResponse.json(
@@ -60,13 +74,17 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
-  const body: Record<string, string> = {};
+  const body: Record<string, string | boolean> = {};
   
   const dateStr = searchParams.get("date");
   if (dateStr) body.date = dateStr;
   
   const regionStr = searchParams.get("region");
   if (regionStr) body.region = regionStr;
+
+  // autoProcess mặc định = true
+  const autoProcessStr = searchParams.get("autoProcess");
+  body.autoProcess = autoProcessStr !== "false";
 
   // Redirect to POST handler
   const postRequest = new NextRequest(request.url, {
