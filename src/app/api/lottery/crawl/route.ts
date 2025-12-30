@@ -2,6 +2,40 @@ import { NextRequest, NextResponse } from "next/server";
 import { Region } from "@prisma/client";
 import { crawlLotteryResults } from "@/utils/lottery-crawler";
 
+// Secret key để bảo vệ API - chỉ cron job mới có thể gọi
+const CRON_SECRET = process.env.CRON_SECRET;
+
+/**
+ * Kiểm tra authorization
+ * Hỗ trợ 2 cách:
+ * 1. Header: Authorization: Bearer <secret>
+ * 2. Query param: ?secret=<secret>
+ */
+function isAuthorized(request: NextRequest): boolean {
+  // Nếu không set CRON_SECRET trong env, cho phép tất cả (dev mode)
+  if (!CRON_SECRET) {
+    console.warn("⚠️ CRON_SECRET not set - API is unprotected!");
+    return true;
+  }
+
+  // Check Authorization header
+  const authHeader = request.headers.get("Authorization");
+  if (authHeader) {
+    const [type, token] = authHeader.split(" ");
+    if (type === "Bearer" && token === CRON_SECRET) {
+      return true;
+    }
+  }
+
+  // Check query param (fallback cho một số cron services)
+  const secretParam = request.nextUrl.searchParams.get("secret");
+  if (secretParam === CRON_SECRET) {
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * POST /api/lottery/crawl
  * Body: { 
@@ -12,9 +46,18 @@ import { crawlLotteryResults } from "@/utils/lottery-crawler";
  * 
  * GET /api/lottery/crawl?date=2024-01-15&region=MN&autoProcess=true
  * 
+ * ⚠️ YÊU CẦU: Authorization header hoặc secret query param
  * ✅ TỰ ĐỘNG DÒ SỐ cho tickets pending sau khi crawl thành công
  */
 export async function POST(request: NextRequest) {
+  // Kiểm tra authorization
+  if (!isAuthorized(request)) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized - Invalid or missing secret" },
+      { status: 401 }
+    );
+  }
+
   try {
     const body = await request.json().catch(() => ({}));
 
@@ -70,8 +113,17 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET endpoint cho cron job
+ * ⚠️ YÊU CẦU: Authorization header hoặc secret query param
  */
 export async function GET(request: NextRequest) {
+  // Kiểm tra authorization
+  if (!isAuthorized(request)) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized - Invalid or missing secret" },
+      { status: 401 }
+    );
+  }
+
   const searchParams = request.nextUrl.searchParams;
 
   const body: Record<string, string | boolean> = {};

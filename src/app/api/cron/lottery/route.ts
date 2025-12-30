@@ -3,8 +3,35 @@ import { Region } from "@prisma/client";
 import { crawlLotteryResults } from "@/utils/lottery-crawler";
 import { processPendingTickets } from "@/utils/ticket-processor";
 
+// Secret key để bảo vệ API
+const CRON_SECRET = process.env.CRON_SECRET;
+
+function isAuthorized(request: NextRequest): boolean {
+  if (!CRON_SECRET) {
+    console.warn("⚠️ CRON_SECRET not set - API is unprotected!");
+    return true;
+  }
+
+  const authHeader = request.headers.get("Authorization");
+  if (authHeader) {
+    const [type, token] = authHeader.split(" ");
+    if (type === "Bearer" && token === CRON_SECRET) {
+      return true;
+    }
+  }
+
+  const secretParam = request.nextUrl.searchParams.get("secret");
+  if (secretParam === CRON_SECRET) {
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * GET /api/cron/lottery
+ * 
+ * ⚠️ YÊU CẦU: Authorization header hoặc secret query param
  * 
  * Cron job chạy hàng ngày sau giờ xổ số:
  * 1. Crawl kết quả xổ số
@@ -18,9 +45,16 @@ import { processPendingTickets } from "@/utils/ticket-processor";
  * - 16:45 - Crawl MN (xổ 16:10)
  * - 17:45 - Crawl MT (xổ 17:10)
  * - 18:45 - Crawl MB (xổ 18:10)
- * - 19:00 - Crawl ALL + Process ALL (đảm bảo đầy đủ)
  */
 export async function GET(request: NextRequest) {
+    // Kiểm tra authorization
+    if (!isAuthorized(request)) {
+        return NextResponse.json(
+            { success: false, error: "Unauthorized - Invalid or missing secret" },
+            { status: 401 }
+        );
+    }
+
     const startTime = Date.now();
     const searchParams = request.nextUrl.searchParams;
     
