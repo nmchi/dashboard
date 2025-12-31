@@ -24,6 +24,8 @@ export async function GET(req: NextRequest) {
         const userId = searchParams.get('userId');
         const parentId = searchParams.get('parentId');
         const status = searchParams.get('status') as TicketStatus | null;
+        const dateFrom = searchParams.get('dateFrom');
+        const dateTo = searchParams.get('dateTo');
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '20');
         
@@ -44,6 +46,21 @@ export async function GET(req: NextRequest) {
         
         if (status) {
             where.status = status;
+        }
+        
+        // Filter theo ngày
+        if (dateFrom || dateTo) {
+            where.drawDate = {};
+            if (dateFrom) {
+                const fromDate = new Date(dateFrom);
+                fromDate.setHours(0, 0, 0, 0);
+                where.drawDate.gte = fromDate;
+            }
+            if (dateTo) {
+                const toDate = new Date(dateTo);
+                toDate.setHours(23, 59, 59, 999);
+                where.drawDate.lte = toDate;
+            }
         }
         
         const [tickets, total] = await Promise.all([

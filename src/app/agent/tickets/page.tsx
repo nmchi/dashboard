@@ -5,6 +5,7 @@ import { useSession } from "@/lib/auth-client";
 import { TicketStatus, Region } from "@prisma/client";
 import Link from "next/link";
 import { RefreshCw, Loader2 } from "lucide-react";
+import { ReportDialog } from "@/components/agent/tickets/report-dialog";
 
 interface Player {
     id: string;
@@ -62,6 +63,9 @@ export default function TicketListPage() {
     });
     const [statusFilter, setStatusFilter] = useState<TicketStatus | ''>('');
     const [expandedId, setExpandedId] = useState<string | null>(null);
+    
+    // Date filter cho báo sổ
+    const [dateFilter, setDateFilter] = useState<string>('');
 
     // Lấy danh sách Players của Agent
     useEffect(() => {
@@ -106,6 +110,12 @@ export default function TicketListPage() {
                 params.append('status', statusFilter);
             }
             
+            // Filter theo ngày
+            if (dateFilter) {
+                params.append('dateFrom', dateFilter);
+                params.append('dateTo', dateFilter);
+            }
+            
             const res = await fetch(`/api/tickets?${params}`);
             const data = await res.json();
             
@@ -118,7 +128,7 @@ export default function TicketListPage() {
         } finally {
             setLoading(false);
         }
-    }, [session?.user?.id, selectedPlayerId, pagination.page, pagination.limit, statusFilter]);
+    }, [session?.user?.id, selectedPlayerId, pagination.page, pagination.limit, statusFilter, dateFilter]);
 
     useEffect(() => {
         fetchTickets();
@@ -240,6 +250,10 @@ export default function TicketListPage() {
 
     // Đếm số pending tickets
     const pendingCount = tickets.filter(t => t.status === TicketStatus.PENDING).length;
+    
+    // Lấy tên player đã chọn
+    const selectedPlayer = players.find(p => p.id === selectedPlayerId);
+    const selectedPlayerName = selectedPlayer?.name || selectedPlayer?.username || '';
 
     return (
         <div className="space-y-6">
@@ -312,6 +326,28 @@ export default function TicketListPage() {
                             <option value={TicketStatus.ERROR}>Lỗi</option>
                         </select>
                     </div>
+                    
+                    {/* Lọc theo ngày */}
+                    <div>
+                        <label className="block text-sm text-slate-600 mb-1">Ngày</label>
+                        <input
+                            type="date"
+                            value={dateFilter}
+                            onChange={(e) => {
+                                setDateFilter(e.target.value);
+                                setPagination(p => ({ ...p, page: 1 }));
+                            }}
+                            className="border rounded-lg px-3 py-2"
+                        />
+                    </div>
+                    
+                    {/* Nút Báo sổ - luôn hiển thị */}
+                    <ReportDialog
+                        playerId={selectedPlayerId}
+                        playerName={selectedPlayerName}
+                        dateFrom={dateFilter || undefined}
+                        dateTo={dateFilter || undefined}
+                    />
                     
                     <div className="ml-auto text-sm text-slate-600">
                         Tổng: <strong>{pagination.total}</strong> tin nhắn
