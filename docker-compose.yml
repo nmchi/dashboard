@@ -20,7 +20,7 @@ services:
     networks:
       - xsnhanh_network
 
-app:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
