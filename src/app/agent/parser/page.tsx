@@ -298,7 +298,7 @@ export default function ParserPage() {
             
             {/* Input Section */}
             <div className="bg-white rounded-lg border shadow-sm p-6">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
                     {/* Chọn Player */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Khách hàng <span className="text-red-500">*</span></label>
@@ -384,11 +384,11 @@ export default function ParserPage() {
                 </div>
                 
                 {/* Buttons */}
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                     <button
                         onClick={handleParse}
                         disabled={loading || !message.trim() || !selectedPlayerId}
-                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="w-full sm:w-auto bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                         {loading ? 'Đang xử lý...' : '🔍 Phân tích'}
                     </button>
@@ -461,7 +461,7 @@ export default function ParserPage() {
                             {totalsByType && (
                                 <div className="mb-6">
                                     <div className="overflow-x-auto border rounded-lg">
-                                        <table className="w-full text-sm">
+                                        <table className="w-full text-xs sm:text-sm min-w-[400px]">
                                             <thead className="bg-slate-700 text-white">
                                                 <tr>
                                                     <th className="px-4 py-3 text-left font-medium uppercase tracking-wider">Kiểu</th>
@@ -521,7 +521,7 @@ export default function ParserPage() {
                             {/* Bets Table - Gộp theo đài + kiểu cược */}
                             <h3 className="font-semibold mb-3 text-slate-800">📋 Chi tiết cược ({result.parsedResult.bets.length} cược hợp lệ)</h3>
                             <div className="overflow-x-auto border rounded-lg">
-                                <table className="w-full text-sm">
+                                <table className="w-full text-xs sm:text-sm min-w-[350px]">
                                     <thead className="bg-slate-50 border-b">
                                         <tr>
                                             <th className="px-3 py-2 text-left font-medium text-slate-600">Đài</th>

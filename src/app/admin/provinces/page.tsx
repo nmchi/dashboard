@@ -45,8 +45,8 @@ export default async function AdminProvincesPage(props: PageProps) {
             <h1 className="text-2xl font-bold text-slate-800">Quản lý Đài / Tỉnh</h1>
             <div className="flex items-center gap-2"><SearchInput /><ProvinceDialog /></div>
         </div>
-        <div className="rounded-md border bg-white shadow-sm overflow-hidden">
-            <Table>
+        <div className="rounded-md border bg-white shadow-sm overflow-x-auto">
+            <Table className="min-w-[700px]">
             <TableHeader className="bg-slate-50">
                 <TableRow>
                 <TableHead><SortLink col="name" label="Tên đài" sort={sort} order={order} query={query} /></TableHead>

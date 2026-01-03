@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession } from "@/lib/auth-client";
 import { TicketStatus, Region } from "@prisma/client";
 import Link from "next/link";
-import { RefreshCw, Loader2 } from "lucide-react";
+import { RefreshCw, Loader2, Trash2 } from "lucide-react";
 import { ReportDialog } from "@/components/agent/tickets/report-dialog";
 
 interface Player {
@@ -64,6 +64,7 @@ export default function TicketListPage() {
     });
     const [statusFilter, setStatusFilter] = useState<TicketStatus | ''>('');
     const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
     
     // Date filter cho báo sổ - mặc định là ngày hôm nay (theo giờ Việt Nam)
     const [dateFilter, setDateFilter] = useState<string>(() => {
@@ -136,6 +137,35 @@ export default function TicketListPage() {
     useEffect(() => {
         fetchTickets();
     }, [fetchTickets]);
+
+    // Xóa ticket
+    const handleDeleteTicket = async (ticketId: string) => {
+        if (!session?.user?.id) return;
+        
+        const confirmed = window.confirm('Bạn có chắc muốn xóa tin nhắn này? Hành động này không thể hoàn tác.');
+        if (!confirmed) return;
+        
+        setDeletingId(ticketId);
+        
+        try {
+            const res = await fetch(`/api/tickets?ticketId=${ticketId}&userId=${session.user.id}`, {
+                method: 'DELETE',
+            });
+            
+            const data = await res.json();
+            
+            if (data.success) {
+                fetchTickets();
+            } else {
+                alert(data.error || 'Lỗi xóa ticket');
+            }
+        } catch (error) {
+            console.error('Delete ticket error:', error);
+            alert('Lỗi kết nối');
+        } finally {
+            setDeletingId(null);
+        }
+    };
 
     // Xử lý dò số cho tickets pending
     const handleProcessTickets = async () => {
@@ -260,12 +290,12 @@ export default function TicketListPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Lịch Sử Tin</h1>
                     <p className="text-slate-500">Danh sách tin nhắn cược đã lưu</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                     {/* Nút Dò Số */}
                     <button
                         onClick={handleProcessTickets}
@@ -291,9 +321,9 @@ export default function TicketListPage() {
             
             {/* Filters */}
             <div className="bg-white rounded-lg border shadow-sm p-4">
-                <div className="flex flex-wrap gap-4 items-end">
+                <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 items-stretch sm:items-end">
                     {/* Lọc theo Player */}
-                    <div>
+                    <div className="w-full sm:w-auto">
                         <label className="block text-sm text-slate-600 mb-1">Khách hàng</label>
                         <select
                             value={selectedPlayerId}
@@ -389,7 +419,7 @@ export default function TicketListPage() {
                                         )}
                                     >
                                         <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                            <div className="flex items-center gap-1 sm:gap-2 mb-1 flex-wrap text-xs sm:text-sm">
                                                 {getStatusBadge(ticket.status)}
                                                 {ticket.user && (
                                                     <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
@@ -415,8 +445,25 @@ export default function TicketListPage() {
                                                         🔍 Dò số
                                                     </button>
                                                 )}
+
+                                                {/* Nút xóa ticket */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteTicket(ticket.id);
+                                                    }}
+                                                    disabled={deletingId === ticket.id}
+                                                    className="ml-2 px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 transition-colors disabled:opacity-50"
+                                                    title="Xóa tin nhắn"
+                                                >
+                                                    {deletingId === ticket.id ? (
+                                                        <Loader2 className="h-3 w-3 animate-spin inline" />
+                                                    ) : (
+                                                        <Trash2 className="h-3 w-3 inline" />
+                                                    )}
+                                                </button>
                                             </div>
-                                            <p className="font-mono text-sm bg-slate-100 p-2 rounded">
+                                            <p className="font-mono text-xs sm:text-sm bg-slate-100 p-2 rounded break-all overflow-x-auto">
                                                 {ticket.rawContent}
                                             </p>
                                             <div className="mt-2 text-sm text-slate-600">
@@ -435,8 +482,9 @@ export default function TicketListPage() {
                                             </div>
                                         </div>
                                         
-                                        <div className="text-right text-sm text-slate-500">
-                                            {formatDate(ticket.createdAt)}
+                                        <div className="text-right text-xs sm:text-sm text-slate-500 shrink-0">
+                                            <span className="hidden sm:inline">{formatDate(ticket.createdAt)}</span>
+                                            <span className="sm:hidden">{new Date(ticket.createdAt).toLocaleDateString('vi-VN')}</span>
                                             <div className="mt-1">
                                                 {expandedId === ticket.id ? '▲' : '▼'}
                                             </div>
@@ -446,68 +494,111 @@ export default function TicketListPage() {
                                     {/* Ticket Details (Expanded) */}
                                     {expandedId === ticket.id && (
                                         <div className="mt-4 pt-4 border-t">
-                                            <table className="w-full text-sm">
-                                                <thead className="bg-slate-50">
-                                                    <tr>
-                                                        <th className="px-2 py-1 text-left">Đài</th>
-                                                        <th className="px-2 py-1 text-left">Số</th>
-                                                        <th className="px-2 py-1 text-left">Kiểu</th>
-                                                        <th className="px-2 py-1 text-right">Điểm</th>
-                                                        <th className="px-2 py-1 text-right">Tiền thu</th>
-                                                        <th className="px-2 py-1 text-center">Trúng</th>
-                                                        <th className="px-2 py-1 text-right">Thắng</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {ticket.bets.map((bet) => (
-                                                        <tr key={bet.id} className={`border-t ${bet.isWin ? 'bg-green-50' : ''}`}>
-                                                            <td className="px-2 py-1">{bet.provinces?.join(', ') || bet.province.name}</td>
-                                                            <td className="px-2 py-1 font-mono">{bet.numbers}</td>
-                                                            <td className="px-2 py-1">{bet.betType.name}</td>
-                                                            <td className="px-2 py-1 text-right">{bet.point}</td>
-                                                            <td className="px-2 py-1 text-right">{formatMoney(bet.amount)}</td>
-                                                            <td className="px-2 py-1 text-center">
-                                                                {bet.isWin ? (
-                                                                    <span className="text-green-600">✓ {bet.winCount}</span>
-                                                                ) : (
-                                                                    <span className="text-slate-400">-</span>
-                                                                )}
+                                            {/* Mobile: Card layout */}
+                                            <div className="block sm:hidden space-y-3">
+                                                {ticket.bets.map((bet) => (
+                                                    <div key={bet.id} className={`p-3 rounded-lg border ${bet.isWin ? 'bg-green-50 border-green-200' : 'bg-slate-50'}`}>
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <div>
+                                                                <span className="font-medium text-slate-700">{bet.provinces?.join(', ') || bet.province.name}</span>
+                                                                <span className="mx-2 text-slate-400">•</span>
+                                                                <span className="font-mono">{bet.numbers}</span>
+                                                            </div>
+                                                            {bet.isWin && (
+                                                                <span className="text-green-600 text-sm">✓ {bet.winCount}</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex justify-between text-sm text-slate-600">
+                                                            <span>{bet.betType.name}</span>
+                                                            <span>{bet.point}đ</span>
+                                                        </div>
+                                                        <div className="flex justify-between text-sm mt-1">
+                                                            <span className="text-blue-600">Thu: {formatMoney(bet.amount)}</span>
+                                                            <span className={Number(bet.winAmount) > 0 ? 'text-green-600 font-medium' : 'text-slate-400'}>
+                                                                Thắng: {formatMoney(bet.winAmount)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                
+                                                {/* Mobile Summary */}
+                                                <div className="p-3 bg-slate-100 rounded-lg space-y-2">
+                                                    <div className="flex justify-between font-medium">
+                                                        <span>Tổng thu:</span>
+                                                        <span className="text-blue-600">{formatMoney(ticket.totalAmount)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between font-medium">
+                                                        <span>Tổng thắng:</span>
+                                                        <span className="text-green-600">{formatMoney(totalWin)}</span>
+                                                    </div>
+                                                    <div className={`flex justify-between font-bold pt-2 border-t ${diff > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                                        <span>{diff > 0 ? 'Lỗ:' : 'Lời:'}</span>
+                                                        <span>{formatMoney(Math.abs(diff))}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Desktop: Table layout */}
+                                            <div className="hidden sm:block overflow-x-auto">
+                                                <table className="w-full text-sm">
+                                                    <thead className="bg-slate-50">
+                                                        <tr>
+                                                            <th className="px-2 py-1 text-left">Đài</th>
+                                                            <th className="px-2 py-1 text-left">Số</th>
+                                                            <th className="px-2 py-1 text-left">Kiểu</th>
+                                                            <th className="px-2 py-1 text-right">Điểm</th>
+                                                            <th className="px-2 py-1 text-right">Tiền thu</th>
+                                                            <th className="px-2 py-1 text-center">Trúng</th>
+                                                            <th className="px-2 py-1 text-right">Thắng</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {ticket.bets.map((bet) => (
+                                                            <tr key={bet.id} className={`border-t ${bet.isWin ? 'bg-green-50' : ''}`}>
+                                                                <td className="px-2 py-1">{bet.provinces?.join(', ') || bet.province.name}</td>
+                                                                <td className="px-2 py-1 font-mono">{bet.numbers}</td>
+                                                                <td className="px-2 py-1">{bet.betType.name}</td>
+                                                                <td className="px-2 py-1 text-right">{bet.point}</td>
+                                                                <td className="px-2 py-1 text-right">{formatMoney(bet.amount)}</td>
+                                                                <td className="px-2 py-1 text-center">
+                                                                    {bet.isWin ? (
+                                                                        <span className="text-green-600">✓ {bet.winCount}</span>
+                                                                    ) : (
+                                                                        <span className="text-slate-400">-</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className={`px-2 py-1 text-right ${Number(bet.winAmount) > 0 ? 'text-green-600 font-medium' : ''}`}>
+                                                                    {formatMoney(bet.winAmount)}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                    <tfoot className="bg-slate-100 font-medium">
+                                                        <tr className="border-t-2 border-slate-300">
+                                                            <td colSpan={4} className="px-2 py-2">Tổng cộng</td>
+                                                            <td className="px-2 py-2 text-right text-blue-600">
+                                                                {formatMoney(ticket.totalAmount)}
                                                             </td>
-                                                            <td className={`px-2 py-1 text-right ${
-                                                                Number(bet.winAmount) > 0 ? 'text-green-600 font-medium' : ''
-                                                            }`}>
-                                                                {formatMoney(bet.winAmount)}
+                                                            <td className="px-2 py-2 text-center">
+                                                                {ticket.bets.filter(b => b.isWin).length}
+                                                            </td>
+                                                            <td className="px-2 py-2 text-right text-green-600">
+                                                                {formatMoney(totalWin)}
                                                             </td>
                                                         </tr>
-                                                    ))}
-                                                </tbody>
-                                                <tfoot className="bg-slate-100 font-medium">
-                                                    <tr className="border-t-2 border-slate-300">
-                                                        <td colSpan={4} className="px-2 py-2">Tổng cộng</td>
-                                                        <td className="px-2 py-2 text-right text-blue-600">
-                                                            {formatMoney(ticket.totalAmount)}
-                                                        </td>
-                                                        <td className="px-2 py-2 text-center">
-                                                            {ticket.bets.filter(b => b.isWin).length}
-                                                        </td>
-                                                        <td className="px-2 py-2 text-right text-green-600">
-                                                            {formatMoney(totalWin)}
-                                                        </td>
-                                                    </tr>
-                                                    <tr className="border-t">
-                                                        <td colSpan={6} className="px-2 py-2 text-right">
-                                                            <span className={diff > 0 ? 'text-red-600' : 'text-green-600'}>
-                                                                {diff > 0 ? 'Lỗ:' : 'Lời:'}
-                                                            </span>
-                                                        </td>
-                                                        <td className={`px-2 py-2 text-right font-bold ${
-                                                            diff > 0 ? 'text-red-600' : 'text-green-600'
-                                                        }`}>
-                                                            {formatMoney(Math.abs(diff))}
-                                                        </td>
-                                                    </tr>
-                                                </tfoot>
-                                            </table>
+                                                        <tr className="border-t">
+                                                            <td colSpan={6} className="px-2 py-2 text-right">
+                                                                <span className={diff > 0 ? 'text-red-600' : 'text-green-600'}>
+                                                                    {diff > 0 ? 'Lỗ:' : 'Lời:'}
+                                                                </span>
+                                                            </td>
+                                                            <td className={`px-2 py-2 text-right font-bold ${diff > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                                                {formatMoney(Math.abs(diff))}
+                                                            </td>
+                                                        </tr>
+                                                    </tfoot>
+                                                </table>
+                                            </div>
                                             
                                             {ticket.errorMsg && (
                                                 <div className="mt-2 p-2 bg-red-50 text-red-600 text-sm rounded">

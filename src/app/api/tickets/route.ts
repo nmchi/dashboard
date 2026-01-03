@@ -220,6 +220,75 @@ export async function POST(req: NextRequest) {
     }
 }
 
+/**
+ * DELETE /api/tickets?ticketId=xxx&userId=xxx
+ * 
+ * Xóa ticket - chỉ agent mới có quyền xóa ticket của players thuộc mình
+ */
+export async function DELETE(req: NextRequest) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const ticketId = searchParams.get('ticketId');
+        const userId = searchParams.get('userId'); // Agent ID
+        
+        if (!ticketId) {
+            return NextResponse.json({
+                success: false,
+                error: 'Thiếu ticketId',
+            }, { status: 400 });
+        }
+        
+        if (!userId) {
+            return NextResponse.json({
+                success: false,
+                error: 'Thiếu userId (Agent ID)',
+            }, { status: 400 });
+        }
+        
+        // Tìm ticket và kiểm tra quyền
+        const ticket = await db.ticket.findUnique({
+            where: { id: ticketId },
+            include: {
+                user: {
+                    select: { id: true, parentId: true }
+                }
+            }
+        });
+        
+        if (!ticket) {
+            return NextResponse.json({
+                success: false,
+                error: 'Không tìm thấy ticket',
+            }, { status: 404 });
+        }
+        
+        // Kiểm tra quyền: Agent chỉ được xóa ticket của players thuộc mình
+        if (ticket.user.parentId !== userId) {
+            return NextResponse.json({
+                success: false,
+                error: 'Không có quyền xóa ticket này',
+            }, { status: 403 });
+        }
+        
+        // Xóa ticket (bets sẽ tự động xóa theo cascade)
+        await db.ticket.delete({
+            where: { id: ticketId }
+        });
+        
+        return NextResponse.json({
+            success: true,
+            message: 'Đã xóa ticket thành công',
+        });
+        
+    } catch (error) {
+        console.error('Delete ticket error:', error);
+        return NextResponse.json({
+            success: false,
+            error: 'Lỗi xóa ticket',
+        }, { status: 500 });
+    }
+}
+
 function prepareBetsCreateData(
     bets: ParsedBet[],
     allProvinces: { id: string; name: string; aliases: string }[],

@@ -276,7 +276,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                 </Button>
             </DialogTrigger>
             
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                 <DialogHeader>
                     <DialogTitle className="text-blue-600">
                         Báo sổ <span className="text-slate-500 font-normal">(Nhận)</span>
@@ -289,7 +289,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                 ) : (
                     <div className="space-y-4">
                         {/* Nợ cũ */}
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <div className="flex items-center gap-2">
                                 <Label className="w-16 text-sm shrink-0">Nợ cũ 1:</Label>
                                 <Input
@@ -313,12 +313,12 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                         </div>
                         
                         {/* Toggle buttons */}
-                        <div className="flex flex-wrap gap-2 items-center">
+                        <div className="flex flex-wrap gap-1.5 sm:gap-2 items-center">
                             <Button
                                 variant={showXacTotal ? 'default' : 'outline'}
                                 size="sm"
                                 onClick={() => setShowXacTotal(!showXacTotal)}
-                                className="text-xs"
+                                className="text-[10px] sm:text-xs px-2 sm:px-3"
                             >
                                 Mở tiền xác(tổng)
                                 <span className="ml-1 text-xs opacity-70">{showXacTotal ? 'Bật' : 'Tắt'}</span>
@@ -328,7 +328,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                                 variant={showThucThuTotal ? 'default' : 'outline'}
                                 size="sm"
                                 onClick={() => setShowThucThuTotal(!showThucThuTotal)}
-                                className="text-xs"
+                                className="text-[10px] sm:text-xs px-2 sm:px-3"
                             >
                                 Mở thực thu(tổng)
                                 <span className="ml-1 text-xs opacity-70">{showThucThuTotal ? 'Bật' : 'Tắt'}</span>
@@ -439,40 +439,42 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                             Lưu ý: không nhận về thì điền 1, mặc định điền 0.95
                         </div>
                         
-                        <table className="w-full text-sm border">
-                            <thead>
-                                <tr className="bg-slate-100">
-                                    <th className="border p-2 text-left">( Nhân về )</th>
-                                    <th className="border p-2">2C</th>
-                                    <th className="border p-2">3C-4C</th>
-                                    <th className="border p-2">Đá/ĐX</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {(['mb', 'mt', 'mn'] as const).map((region) => (
-                                    <tr key={region}>
-                                        <td className={`border p-2 font-medium ${
-                                            region === 'mb' ? 'bg-red-50 text-red-700' :
-                                            region === 'mt' ? 'bg-orange-50 text-orange-700' :
-                                            'bg-blue-50 text-blue-700'
-                                        }`}>
-                                            {region === 'mb' ? 'Miền bắc' : region === 'mt' ? 'Miền trung' : 'Miền nam'}
-                                        </td>
-                                        {(['2c', '3c-4c', 'da'] as const).map((type) => (
-                                            <td key={type} className="border p-1">
-                                                <Input
-                                                    type="number"
-                                                    step="0.01"
-                                                    value={nhanVe[region][type]}
-                                                    onChange={(e) => updateNhanVe(region, type, e.target.value)}
-                                                    className="h-7 text-center text-sm"
-                                                />
-                                            </td>
-                                        ))}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-xs sm:text-sm border min-w-[350px]">
+                                <thead>
+                                    <tr className="bg-slate-100">
+                                        <th className="border p-2 text-left">( Nhân về )</th>
+                                        <th className="border p-2">2C</th>
+                                        <th className="border p-2">3C-4C</th>
+                                        <th className="border p-2">Đá/ĐX</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {(['mb', 'mt', 'mn'] as const).map((region) => (
+                                        <tr key={region}>
+                                            <td className={`border p-2 font-medium ${
+                                                region === 'mb' ? 'bg-red-50 text-red-700' :
+                                                region === 'mt' ? 'bg-orange-50 text-orange-700' :
+                                                'bg-blue-50 text-blue-700'
+                                            }`}>
+                                                {region === 'mb' ? 'Miền bắc' : region === 'mt' ? 'Miền trung' : 'Miền nam'}
+                                            </td>
+                                            {(['2c', '3c-4c', 'da'] as const).map((type) => (
+                                                <td key={type} className="border p-1">
+                                                    <Input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={nhanVe[region][type]}
+                                                        onChange={(e) => updateNhanVe(region, type, e.target.value)}
+                                                        className="h-7 text-center text-sm"
+                                                    />
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                         
                         {/* Buttons */}
                         <div className="flex gap-2 pt-2">

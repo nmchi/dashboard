@@ -100,14 +100,22 @@ export function PlayerDialog({ player }: PlayerDialogProps) {
             )}
         </DialogTrigger>
         
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6">
             <DialogHeader><DialogTitle>{isEdit ? `Sửa: ${player?.name || "Khách"}` : "Thêm Khách Mới"}</DialogTitle></DialogHeader>
             
             <form onSubmit={handleSubmit(onSubmit)}>
             <Tabs defaultValue="info" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="info" className="gap-2"><User className="h-4 w-4"/> Thông tin chung</TabsTrigger>
-                <TabsTrigger value="config" className="gap-2"><Settings2 className="h-4 w-4"/> Cấu hình Giá & Trúng</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-2 h-auto">
+                    <TabsTrigger value="info" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2">
+                        <User className="h-3 w-3 sm:h-4 sm:w-4"/> 
+                        <span className="hidden sm:inline">Thông tin chung</span>
+                        <span className="sm:hidden">Thông tin</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="config" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2">
+                        <Settings2 className="h-3 w-3 sm:h-4 sm:w-4"/> 
+                        <span className="hidden sm:inline">Cấu hình Giá & Trúng</span>
+                        <span className="sm:hidden">Cấu hình</span>
+                    </TabsTrigger>
                 </TabsList>
 
                 {/* --- TAB 1: THÔNG TIN CƠ BẢN --- */}
@@ -147,62 +155,62 @@ export function PlayerDialog({ player }: PlayerDialogProps) {
                     <div className="border p-4 rounded-lg bg-blue-50/50 shadow-sm space-y-4">
                         <h3 className="font-bold text-blue-700 text-center border-b border-blue-200 pb-2 text-lg">MIỀN NAM (MN)</h3>
                         
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 sm:gap-y-4">
                             {/* Header cột */}
                             <div className="col-span-2 grid grid-cols-2 gap-4 text-center text-xs font-bold text-slate-500">
                                 <span>THU</span><span>TRẢ</span>
                             </div>
                             
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">2D-DAU</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">2D-DAU</span>
                                 <SettingInput name="betSettings.price2daumn" register={register} />
                                 <SettingInput name="betSettings.win2daumn" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">2D-DUOI</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">2D-DUOI</span>
                                 <SettingInput name="betSettings.price2duoimn" register={register} />
                                 <SettingInput name="betSettings.win2duoimn" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">2D-18L</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">2D-18L</span>
                                 <SettingInput name="betSettings.price2lmn" register={register} />
                                 <SettingInput name="betSettings.win2lmn" register={register} />
                             </div>
                             
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">3D-DAU</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">3D-DAU</span>
                                 <SettingInput name="betSettings.price3daumn" register={register} />
                                 <SettingInput name="betSettings.win3daumn" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">3D-DUOI</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">3D-DUOI</span>
                                 <SettingInput name="betSettings.price3duoimn" register={register} />
                                 <SettingInput name="betSettings.win3duoimn" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">3D-17L</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">3D-17L</span>
                                 <SettingInput name="betSettings.price3lmn" register={register} />
                                 <SettingInput name="betSettings.win3lmn" register={register} />
                             </div>
                             
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">4D-DUOI</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">4D-DUOI</span>
                                 <SettingInput name="betSettings.price4duoimn" register={register} />
                                 <SettingInput name="betSettings.win4duoimn" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">4D-16L</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">4D-16L</span>
                                 <SettingInput name="betSettings.price4lmn" register={register} />
                                 <SettingInput name="betSettings.win4lmn" register={register} />
                             </div>
 
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">DATHANG</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">DATHANG</span>
                                 <SettingInput name="betSettings.pricedamn" register={register} />
                                 <SettingInput name="betSettings.windamn" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">DAXIEN</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">DAXIEN</span>
                                 <SettingInput name="betSettings.pricedxmn" register={register} />
                                 <SettingInput name="betSettings.windxmn" register={register} />
                             </div>
@@ -213,56 +221,56 @@ export function PlayerDialog({ player }: PlayerDialogProps) {
                     <div className="border p-4 rounded-lg bg-orange-50/50 shadow-sm space-y-4">
                         <h3 className="font-bold text-orange-700 text-center border-b border-orange-200 pb-2 text-lg">MIỀN TRUNG (MT)</h3>
                         
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">2D-DAU</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 sm:gap-y-4">
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">2D-DAU</span>
                                 <SettingInput name="betSettings.price2daumt" register={register} />
                                 <SettingInput name="betSettings.win2daumt" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">2D-DUOI</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">2D-DUOI</span>
                                 <SettingInput name="betSettings.price2duoimt" register={register} />
                                 <SettingInput name="betSettings.win2duoimt" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">2D-18L</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">2D-18L</span>
                                 <SettingInput name="betSettings.price2lmt" register={register} />
                                 <SettingInput name="betSettings.win2lmt" register={register} />
                             </div>
 
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">3D-DAU</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">3D-DAU</span>
                                 <SettingInput name="betSettings.price3daumt" register={register} />
                                 <SettingInput name="betSettings.win3daumt" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">3D-DUOI</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">3D-DUOI</span>
                                 <SettingInput name="betSettings.price3duoimt" register={register} />
                                 <SettingInput name="betSettings.win3duoimt" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">3D-17L</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">3D-17L</span>
                                 <SettingInput name="betSettings.price3lmt" register={register} />
                                 <SettingInput name="betSettings.win3lmt" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">4D-DUOI</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">4D-DUOI</span>
                                 <SettingInput name="betSettings.price4duoimt" register={register} />
                                 <SettingInput name="betSettings.win4duoimt" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">4D-16L</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">4D-16L</span>
                                 <SettingInput name="betSettings.price4lmt" register={register} />
                                 <SettingInput name="betSettings.win4lmt" register={register} />
                             </div>
 
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">DATHANG</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">DATHANG</span>
                                 <SettingInput name="betSettings.pricedamt" register={register} />
                                 <SettingInput name="betSettings.windamt" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">DAXIEN</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">DAXIEN</span>
                                 <SettingInput name="betSettings.pricedxmt" register={register} />
                                 <SettingInput name="betSettings.windxmt" register={register} />
                             </div>
@@ -273,51 +281,51 @@ export function PlayerDialog({ player }: PlayerDialogProps) {
                     <div className="border p-4 rounded-lg bg-red-50/50 shadow-sm space-y-4">
                         <h3 className="font-bold text-red-700 text-center border-b border-red-200 pb-2 text-lg">MIỀN BẮC (MB)</h3>
                         
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">2D-DAU</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 sm:gap-y-4">
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">2D-DAU</span>
                                 <SettingInput name="betSettings.price2daumb" register={register} />
                                 <SettingInput name="betSettings.win2daumb" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">2D-DUOI</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">2D-DUOI</span>
                                 <SettingInput name="betSettings.price2duoimb" register={register} />
                                 <SettingInput name="betSettings.win2duoimb" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">2D-27L</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">2D-27L</span>
                                 <SettingInput name="betSettings.price2lmb" register={register} />
                                 <SettingInput name="betSettings.win2lmb" register={register} />
                             </div>
 
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">3D-DAU</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">3D-DAU</span>
                                 <SettingInput name="betSettings.price3daumb" register={register} />
                                 <SettingInput name="betSettings.win3daumb" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">3D-DUOI</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">3D-DUOI</span>
                                 <SettingInput name="betSettings.price3duoimb" register={register} />
                                 <SettingInput name="betSettings.win3duoimb" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">3D-23L</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">3D-23L</span>
                                 <SettingInput name="betSettings.price3lmb" register={register} />
                                 <SettingInput name="betSettings.win3lmb" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">4D-DUOI</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">4D-DUOI</span>
                                 <SettingInput name="betSettings.price4duoimb" register={register} />
                                 <SettingInput name="betSettings.win4duoimb" register={register} />
                             </div>
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">4D-20L</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">4D-20L</span>
                                 <SettingInput name="betSettings.price4lmb" register={register} />
                                 <SettingInput name="betSettings.win4lmb" register={register} />
                             </div>
 
-                            <div className="col-span-2 grid grid-cols-[1fr_1fr_1fr] gap-2 items-center">
-                                <span className="text-xs font-semibold text-slate-600">DATHANG</span>
+                            <div className="col-span-1 sm:col-span-2 grid grid-cols-[auto_1fr_1fr] gap-2 items-center">
+                                <span className="text-xs font-semibold text-slate-600 min-w-[60px]">DATHANG</span>
                                 <SettingInput name="betSettings.pricedamb" register={register} />
                                 <SettingInput name="betSettings.windamb" register={register} />
                             </div>

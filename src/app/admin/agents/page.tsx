@@ -33,8 +33,8 @@ export default async function AdminAgentsPage() {
             </div>
         </div>
 
-        <div className="rounded-md border bg-white shadow-sm">
-            <Table>
+        <div className="rounded-md border bg-white shadow-sm overflow-x-auto">
+            <Table className="min-w-[600px]">
             <TableHeader>
                 <TableRow>
                 <TableHead>Tài khoản</TableHead>
