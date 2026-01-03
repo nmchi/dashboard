@@ -52,13 +52,15 @@ export async function GET(req: NextRequest) {
         if (dateFrom || dateTo) {
             where.drawDate = {};
             if (dateFrom) {
-                const fromDate = new Date(dateFrom);
-                fromDate.setHours(0, 0, 0, 0);
+                // Parse YYYY-MM-DD và tạo date ở UTC midnight
+                const [year, month, day] = dateFrom.split('-').map(Number);
+                const fromDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
                 where.drawDate.gte = fromDate;
             }
             if (dateTo) {
-                const toDate = new Date(dateTo);
-                toDate.setHours(23, 59, 59, 999);
+                // Parse YYYY-MM-DD và tạo date ở UTC 23:59:59
+                const [year, month, day] = dateTo.split('-').map(Number);
+                const toDate = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
                 where.drawDate.lte = toDate;
             }
         }
