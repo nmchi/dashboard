@@ -227,6 +227,7 @@ model Bet {
   
   provinceId  String
   province    LotteryProvince @relation(fields: [provinceId], references: [id])
+  provinces   Json?
   
   typeId      String
   betType     BetType         @relation(fields: [typeId], references: [id])

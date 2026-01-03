@@ -241,6 +241,7 @@ function prepareBetsCreateData(
         
         betsData.push({
             province: { connect: { id: province.id } },
+            provinces: bet.provinces,
             betType: { connect: { id: betType.id } },
             numbers: numbersStr,
             point: bet.point,
