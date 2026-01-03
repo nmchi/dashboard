@@ -10,6 +10,10 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+# Dummy DATABASE_URL for build time (prisma generate & next build)
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+
 RUN npx prisma generate
 RUN npm run build
 
