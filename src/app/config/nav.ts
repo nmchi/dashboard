@@ -6,8 +6,7 @@ import {
     Settings,
     LucideIcon,
     FileText,
-    History,
-    UserPlus
+    History
 } from "lucide-react";
 
 export type NavItem = {
@@ -70,6 +69,12 @@ export const sidebarLinks: NavItem[] = [
         title: "Lịch Sử Tin",
         href: "/agent/tickets",
         icon: History,
+        roles: ["AGENT"],
+    },
+    {
+        title: "Profile",
+        href: "/agent/profile",
+        icon: Settings,
         roles: ["AGENT"],
     },
 ];

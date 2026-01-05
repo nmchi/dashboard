@@ -77,14 +77,12 @@ export function LoginForm() {
                 },
                 
                 onError: (ctx) => {
-                    console.error("Login error details:", ctx.error);
                     setError(ctx.error.message || "Đăng nhập thất bại")
                     setLoading(false)
                 }
             })
         } catch (err) {
             console.error("Login error:", err)
-            console.error("Login catch error:", err);
             setError("Có lỗi xảy ra. Vui lòng thử lại.")
             setLoading(false)
         }
