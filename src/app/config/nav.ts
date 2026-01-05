@@ -1,13 +1,13 @@
 import { 
     LayoutDashboard, 
     Users,
-    Package,
     Map,
     List,
     Settings,
     LucideIcon,
     FileText,
-    History
+    History,
+    UserPlus
 } from "lucide-react";
 
 export type NavItem = {
@@ -19,21 +19,15 @@ export type NavItem = {
 
 export const sidebarLinks: NavItem[] = [
     {
-        title: "Tổng quan Admin",
+        title: "Tổng quan",
         href: "/admin",
         icon: LayoutDashboard,
         roles: ["ADMIN"],
     },
     {
-        title: "Quản lý Đại lý",
+        title: "Quản lý Máy",
         href: "/admin/agents",
         icon: Users,
-        roles: ["ADMIN"],
-    },
-    {
-        title: "Quản lý Gói cước",
-        href: "/admin/packages",
-        icon: Package,
         roles: ["ADMIN"],
     },
     {
@@ -51,17 +45,17 @@ export const sidebarLinks: NavItem[] = [
     {
         title: "Profile",
         href: "/admin/profile",
-        icon: List,
+        icon: Settings,
         roles: ["ADMIN"],
     },
-        {
-        title: "Tổng quan AGENT",
+    {
+        title: "Tổng quan",
         href: "/agent",
         icon: LayoutDashboard,
         roles: ["AGENT"],
     },
     {
-        title: "Quản lý Người chơi",
+        title: "Quản lý Khách",
         href: "/agent/players",
         icon: Users,
         roles: ["AGENT"],
@@ -76,12 +70,6 @@ export const sidebarLinks: NavItem[] = [
         title: "Lịch Sử Tin",
         href: "/agent/tickets",
         icon: History,
-        roles: ["AGENT"],
-    },
-    {
-        title: "Cấu hình",
-        href: "/settings/game",
-        icon: Settings,
         roles: ["AGENT"],
     },
 ];

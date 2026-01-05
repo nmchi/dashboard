@@ -6,9 +6,8 @@ import { signIn } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, Ban, Loader2 } from "lucide-react"
-import Link from "next/link"
 
 export function LoginForm() {
     const router = useRouter()
@@ -78,12 +77,14 @@ export function LoginForm() {
                 },
                 
                 onError: (ctx) => {
+                    console.error("Login error details:", ctx.error);
                     setError(ctx.error.message || "Đăng nhập thất bại")
                     setLoading(false)
                 }
             })
         } catch (err) {
             console.error("Login error:", err)
+            console.error("Login catch error:", err);
             setError("Có lỗi xảy ra. Vui lòng thử lại.")
             setLoading(false)
         }
@@ -164,12 +165,6 @@ export function LoginForm() {
                         )}
                     </Button>
                 </CardContent>
-                <CardFooter className="flex flex-col space-y-2 border-t pt-4 bg-slate-50/50">
-                    <div className="text-sm text-center text-slate-600">Bạn chưa có tài khoản?</div>
-                    <Link href="/pricing" className="w-full">
-                        <Button variant="outline" className="w-full">Đăng ký mua gói ngay</Button>
-                    </Link>
-                </CardFooter>
             </Card>
         </div>
     )

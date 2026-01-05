@@ -57,11 +57,9 @@ async function main() {
     console.log('\n📦 Dọn dẹp dữ liệu cũ...');
     await safeDeleteMany(prisma.bet, 'Bet');
     await safeDeleteMany(prisma.ticket, 'Ticket');
-    await safeDeleteMany(prisma.order, 'Order');
     await safeDeleteMany(prisma.session, 'Session');
     await safeDeleteMany(prisma.account, 'Account');
     await safeDeleteMany(prisma.user, 'User');
-    await safeDeleteMany(prisma.subscriptionPackage, 'SubscriptionPackage');
     await safeDeleteMany(prisma.lotterySchedule, 'LotterySchedule');
     await safeDeleteMany(prisma.lotteryProvince, 'LotteryProvince');
     await safeDeleteMany(prisma.betType, 'BetType');
@@ -120,19 +118,6 @@ async function main() {
         }
     })
     console.log(`✅ Player: ${player.username} (Con của ${agent.username})`)
-
-    // --------------------------------------------------------
-    // 5. TẠO GÓI CƯỚC (SaaS)
-    // --------------------------------------------------------
-    const packages = [
-        { name: 'Gói Tuần', price: 100000, durationDay: 7, isActive: true },
-        { name: 'Gói Tháng', price: 300000, durationDay: 30, isActive: true },
-        { name: 'Gói Quý', price: 800000, durationDay: 90, isActive: true },
-    ]
-    for (const pkg of packages) {
-        await prisma.subscriptionPackage.create({ data: pkg })
-    }
-    console.log(`✅ Đã tạo ${packages.length} gói cước mẫu.`)
 
     console.log('\n🚀 Seeding hoàn tất!')
 }
