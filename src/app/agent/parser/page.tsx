@@ -143,8 +143,6 @@ export default function ParserPage() {
 
     /**
      * Lấy số lô theo miền và số chữ số
-     * Miền Nam/Trung: 18 lô (2 số), 17 lô (3 số), 16 lô (4 số)
-     * Miền Bắc: 27 lô (2 số), 23 lô (3 số), 20 lô (4 số)
      */
     const getLoCount = (numDigits: number, currentRegion: Region): number => {
         if (currentRegion === Region.MB) {
@@ -152,7 +150,6 @@ export default function ParserPage() {
             if (numDigits === 3) return 23;
             if (numDigits === 4) return 20;
         } else {
-            // MN, MT
             if (numDigits === 2) return 18;
             if (numDigits === 3) return 17;
             if (numDigits === 4) return 16;
@@ -162,7 +159,6 @@ export default function ParserPage() {
 
     /**
      * Tính toán totals với xac (chưa nhân %) và amount (đã nhân %)
-     * winPoints = số điểm × số lần trúng (để người dùng dễ tính tiền thắng)
      */
     const calculateTotalsWithXac = (bets: NonNullable<ParseMessageResponse['parsedResult']>['bets']): ExtendedTotalsByType => {
         const emptyTotal = () => ({ xac: 0, amount: 0, winAmount: 0, winPoints: 0 });
@@ -183,37 +179,28 @@ export default function ParserPage() {
             const provinceCount = bet.provinces.length;
             const numDigits = (Array.isArray(bet.numbers) ? bet.numbers[0] : bet.numbers).length;
             
-            // Xác định số lô cần nhân (mặc định = 1 cho đầu/đuôi)
             let loMultiplier = 1;
             
-            // Phân loại và xác định số lô
             if (bet.type === 'Đầu' || bet.type === 'Đuôi' || bet.type === 'Đầu đuôi') {
                 category = "2c-dd";
-                // Đầu/Đuôi: không nhân số lô (chỉ dò 1-2 giải)
                 loMultiplier = 1;
             } else if (bet.type === 'Bao lô' || bet.type === 'Bao đảo') {
-                // Bao lô: nhân với số lô theo miền
                 loMultiplier = getLoCount(numDigits, region);
                 
                 if (numDigits === 2) category = "2c-b";
                 else if (numDigits === 3) category = "3c";
                 else if (numDigits === 4) category = "4c";
             } else if (bet.type.includes('Xỉu chủ')) {
-                // Xỉu chủ: chỉ dò 3 số cuối của giải 7 và giải ĐB
-                // Không nhân số lô như bao lô
                 category = "3c";
                 loMultiplier = 1;
             } else if (bet.type === 'Đá thẳng') {
                 category = "dat";
-                // Đá thẳng: nhân với số lô × 2 (vì mỗi cặp có 2 số)
                 loMultiplier = getLoCount(2, region) * 2;
             } else if (bet.type === 'Đá xiên') {
                 category = "dax";
-                // Đá xiên: công thức riêng, xử lý bên dưới
-                loMultiplier = -1; // Flag để xử lý riêng
+                loMultiplier = -1;
             }
             
-            // Tính XÁC
             let xac: number;
             
             if (bet.type === 'Đá xiên') {
@@ -225,22 +212,16 @@ export default function ParserPage() {
                 
                 xac = bet.point * 1000 * (loCount2 * 2) * combinationFactor * stationMultiplier * 2;
             } else if (bet.type === 'Đá' || bet.type === 'Đá thẳng') {
-                // Đá thẳng: dùng combinationFactor (số cặp) thay vì numCount
-                // XÁC = point × 1000 × provinceCount × combinationFactor × 36
                 const combinationFactor = numCount === 2 ? 1 : (numCount * (numCount - 1)) / 2;
                 xac = bet.point * 1000 * provinceCount * combinationFactor * loMultiplier;
             } else {
-                // Công thức chung: point × 1000 × số đài × số numbers × số lô
                 xac = bet.point * 1000 * provinceCount * numCount * loMultiplier;
             }
             
-            // Tính winPoints = số điểm × số lần trúng
-            // Ví dụ: cược 10đ, trúng 2 lần → winPoints = 20
             const winPoints = bet.point * (bet.winCount || 0);
             
-            // Cộng dồn
             totals[category].xac += xac;
-            totals[category].amount += bet.amount; // Đã nhân % từ API
+            totals[category].amount += bet.amount;
             totals[category].winAmount += bet.winAmount || 0;
             totals[category].winPoints += winPoints;
             
@@ -254,8 +235,7 @@ export default function ParserPage() {
     };
 
     /**
-     * Format tiền theo dạng ngắn gọn: 160000 → 160.0, 1000000 → 1,000.0
-     * Luôn hiển thị 1 chữ số thập phân, thêm dấu "," phân cách hàng nghìn
+     * Format tiền theo dạng ngắn gọn
      */
     const formatMoney = (amount: number) => {
         if (amount === 0) return '0';
@@ -263,11 +243,9 @@ export default function ParserPage() {
         const absAmount = Math.abs(amount);
         const thousands = absAmount / 1000;
         
-        // Tách phần nguyên và thập phân
         const fixed = thousands.toFixed(1);
         const [intPart, decPart] = fixed.split('.');
         
-        // Thêm dấu "," phân cách hàng nghìn cho phần nguyên
         const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
         
         return `${isNegative ? '-' : ''}${formattedInt}.${decPart}`;
@@ -275,7 +253,6 @@ export default function ParserPage() {
 
     const selectedPlayer = players.find(p => p.id === selectedPlayerId);
 
-    // Tên hiển thị cho các loại cược
     const categoryLabels: Record<string, string> = {
         "2c-dd": "2c-dd",
         "2c-b": "2c-b",
@@ -285,28 +262,31 @@ export default function ParserPage() {
         "dax": "dax",
     };
 
-    // Lấy errors từ result
     const validationErrors: ParseError[] = result?.parsedResult?.errors || [];
     const hasValidationErrors = validationErrors.length > 0;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
+            {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">Máy Quét Tin</h1>
-                <p className="text-slate-500">Nhập tin nhắn cược cho khách hàng</p>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Máy Quét Tin</h1>
+                <p className="text-slate-500 text-sm">Nhập tin nhắn cược cho khách hàng</p>
             </div>
             
             {/* Input Section */}
-            <div className="bg-white rounded-lg border shadow-sm p-6">
+            <div className="bg-white rounded-lg border shadow-sm p-4 sm:p-6">
+                {/* Form Grid - Stack on mobile */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
                     {/* Chọn Player */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Khách hàng <span className="text-red-500">*</span></label>
+                    <div className="sm:col-span-2 lg:col-span-1">
+                        <label className="block text-sm font-medium mb-1">
+                            Khách hàng <span className="text-red-500">*</span>
+                        </label>
                         {loadingPlayers ? (
                             <div className="border rounded-lg px-3 py-2 text-gray-500 bg-slate-50">Đang tải...</div>
                         ) : players.length === 0 ? (
                             <div className="border rounded-lg px-3 py-2 text-red-500 text-sm bg-red-50">
-                                Chưa có khách hàng nào. <a href="/agent/players" className="underline">Tạo mới</a>
+                                Chưa có khách. <a href="/agent/players" className="underline font-medium">Tạo mới</a>
                             </div>
                         ) : (
                             <select 
@@ -316,7 +296,7 @@ export default function ParserPage() {
                                     setResult(null);
                                     setTotalsByType(null);
                                 }}
-                                className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                             >
                                 {players.map(player => (
                                     <option key={player.id} value={player.id}>
@@ -337,7 +317,7 @@ export default function ParserPage() {
                                 setResult(null);
                                 setTotalsByType(null);
                             }}
-                            className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                         >
                             <option value={Region.MN}>Miền Nam</option>
                             <option value={Region.MT}>Miền Trung</option>
@@ -356,29 +336,31 @@ export default function ParserPage() {
                                 setResult(null);
                                 setTotalsByType(null);
                             }}
-                            className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                         />
                     </div>
                 </div>
                 
                 {/* Hiển thị Player đang chọn */}
                 {selectedPlayer && (
-                    <div className="mb-4 p-3 bg-blue-50 rounded-lg text-sm border border-blue-100">
-                        <span className="text-blue-600">📝</span> Đang nhập cược cho: <strong className="text-blue-700">{selectedPlayer.name || selectedPlayer.username}</strong>
+                    <div className="mb-4 p-2.5 sm:p-3 bg-blue-50 rounded-lg text-sm border border-blue-100">
+                        <span className="text-blue-600">📝</span> Đang nhập cho: <strong className="text-blue-700">{selectedPlayer.name || selectedPlayer.username}</strong>
                     </div>
                 )}
                 
                 {/* Tin nhắn */}
                 <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Tin nhắn <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium mb-1">
+                        Tin nhắn <span className="text-red-500">*</span>
+                    </label>
                     <textarea
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         placeholder="Ví dụ: vl 12 34 dd 1n&#10;tg bl 56 78 2n&#10;ag bt 11 66 dx 5"
-                        className="w-full border rounded-lg px-3 py-2 h-32 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full border rounded-lg px-3 py-2 h-28 sm:h-32 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         disabled={!selectedPlayerId}
                     />
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs text-slate-500 mt-1 hidden sm:block">
                         Cú pháp: [đài] [số] [kiểu] [điểm] - Ví dụ: vl 12 dd 1n = Vĩnh Long, số 12, đầu đuôi, 1 nghìn
                     </p>
                 </div>
@@ -388,7 +370,7 @@ export default function ParserPage() {
                     <button
                         onClick={handleParse}
                         disabled={loading || !message.trim() || !selectedPlayerId}
-                        className="w-full sm:w-auto bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="w-full sm:w-auto bg-blue-600 text-white px-4 sm:px-6 py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base"
                     >
                         {loading ? 'Đang xử lý...' : '🔍 Phân tích'}
                     </button>
@@ -397,7 +379,7 @@ export default function ParserPage() {
                         <button
                             onClick={handleSave}
                             disabled={saving}
-                            className={`px-6 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                            className={`w-full sm:w-auto px-4 sm:px-6 py-2.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base ${
                                 hasValidationErrors 
                                     ? 'bg-orange-500 hover:bg-orange-600 text-white' 
                                     : 'bg-green-600 hover:bg-green-700 text-white'
@@ -411,34 +393,29 @@ export default function ParserPage() {
             
             {/* Result Section */}
             {result && (
-                <div className="bg-white rounded-lg border shadow-sm p-6">
-                    {/* Hiển thị lỗi chính (nếu không parse được gì) */}
+                <div className="bg-white rounded-lg border shadow-sm p-4 sm:p-6">
+                    {/* Hiển thị lỗi chính */}
                     {!result.success && result.error && (
-                        <div className="text-red-600 p-4 bg-red-50 rounded-lg border border-red-200 mb-4">
+                        <div className="text-red-600 p-3 sm:p-4 bg-red-50 rounded-lg border border-red-200 mb-4 text-sm">
                             ❌ {result.error}
                         </div>
                     )}
                     
                     {/* Hiển thị lỗi validation */}
                     {hasValidationErrors && (
-                        <div className="mb-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
-                            <h4 className="font-semibold text-orange-700 mb-2 flex items-center gap-2">
+                        <div className="mb-4 p-3 sm:p-4 bg-orange-50 rounded-lg border border-orange-200">
+                            <h4 className="font-semibold text-orange-700 mb-2 flex items-center gap-2 text-sm sm:text-base">
                                 ⚠️ Lỗi validation ({validationErrors.length})
                             </h4>
-                            <ul className="space-y-2">
+                            <ul className="space-y-1.5 sm:space-y-2">
                                 {validationErrors.map((err, idx) => (
-                                    <li key={idx} className="text-sm text-orange-800 flex items-start gap-2">
+                                    <li key={idx} className="text-xs sm:text-sm text-orange-800 flex items-start gap-2">
                                         <span className="text-orange-500">•</span>
                                         <div>
                                             <span className="font-medium">{err.type}:</span> {err.message}
                                             {err.numbers && err.numbers.length > 0 && (
                                                 <span className="ml-1 text-orange-600">
                                                     (số: {err.numbers.join(', ')})
-                                                </span>
-                                            )}
-                                            {err.provinces && err.provinces.length > 0 && (
-                                                <span className="ml-1 text-orange-600">
-                                                    (đài: {err.provinces.join(', ')})
                                                 </span>
                                             )}
                                         </div>
@@ -448,20 +425,57 @@ export default function ParserPage() {
                         </div>
                     )}
                     
-                    {/* Kết quả parse thành công (có thể có cả lỗi validation) */}
+                    {/* Kết quả parse thành công */}
                     {result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
                         <>
                             {/* Normalized Message */}
-                            <div className="mb-4 p-3 bg-slate-100 rounded-lg">
-                                <span className="text-sm text-slate-600 block mb-1">Tin nhắn đã chuẩn hóa:</span>
-                                <p className="font-mono text-sm whitespace-pre-wrap">{result.normalizedMessage}</p>
+                            <div className="mb-4 p-2.5 sm:p-3 bg-slate-100 rounded-lg">
+                                <span className="text-xs sm:text-sm text-slate-600 block mb-1">Tin nhắn đã chuẩn hóa:</span>
+                                <p className="font-mono text-xs sm:text-sm whitespace-pre-wrap break-all">{result.normalizedMessage}</p>
                             </div>
                             
-                            {/* Summary Table - Theo mẫu hình ảnh */}
+                            {/* Summary Table */}
                             {totalsByType && (
-                                <div className="mb-6">
-                                    <div className="overflow-x-auto border rounded-lg">
-                                        <table className="w-full text-xs sm:text-sm min-w-[400px]">
+                                <div className="mb-4 sm:mb-6">
+                                    {/* Mobile: Card layout */}
+                                    <div className="sm:hidden space-y-2">
+                                        {(Object.keys(categoryLabels) as Array<keyof typeof categoryLabels>).map((key) => {
+                                            const data = totalsByType[key as keyof ExtendedTotalsByType];
+                                            if (data.xac === 0 && data.amount === 0) return null;
+                                            const netWin = data.winAmount - data.amount;
+                                            return (
+                                                <div key={key} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg text-sm">
+                                                    <span className="font-medium text-slate-700">{categoryLabels[key]}</span>
+                                                    <div className="text-right">
+                                                        <div className="text-slate-600">
+                                                            <span className="text-slate-400 text-xs">Xác:</span> {formatMoney(data.xac)} | 
+                                                            <span className="text-slate-400 text-xs ml-1">Thu:</span> {formatMoney(data.amount)}
+                                                        </div>
+                                                        <div className="text-xs text-slate-500">
+                                                            Trúng: {formatMoney(netWin)} ({data.winPoints}n)
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        {/* Total Card */}
+                                        <div className="flex items-center justify-between p-3 bg-slate-700 text-white rounded-lg">
+                                            <span className="font-semibold">Tổng</span>
+                                            <div className="text-right">
+                                                <div>
+                                                    <span className="text-slate-300 text-xs">Xác:</span> {formatMoney(totalsByType.total.xac)} | 
+                                                    <span className="text-slate-300 text-xs ml-1">Thu:</span> {formatMoney(totalsByType.total.amount)}
+                                                </div>
+                                                <div className="text-xs text-slate-300">
+                                                    Trúng: {formatMoney(totalsByType.total.winAmount - totalsByType.total.amount)} ({totalsByType.total.winPoints}n)
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Desktop: Table layout */}
+                                    <div className="hidden sm:block overflow-x-auto border rounded-lg">
+                                        <table className="w-full text-sm">
                                             <thead className="bg-slate-700 text-white">
                                                 <tr>
                                                     <th className="px-4 py-3 text-left font-medium uppercase tracking-wider">Kiểu</th>
@@ -485,7 +499,6 @@ export default function ParserPage() {
                                                         </tr>
                                                     );
                                                 })}
-                                                {/* Tổng */}
                                                 <tr className="bg-slate-100 font-semibold">
                                                     <td className="px-4 py-3 text-slate-900">Tổng</td>
                                                     <td className="px-4 py-3 text-center">{formatMoney(totalsByType.total.xac)}</td>
@@ -499,15 +512,15 @@ export default function ParserPage() {
                                         </table>
                                     </div>
                                     
-                                    {/* Thu/Trả - Thu (âm) màu đỏ, Trả (dương) màu xanh */}
+                                    {/* Thu/Trả */}
                                     <div className="mt-3 text-right">
                                         {(() => {
                                             const thuTra = totalsByType.total.amount - totalsByType.total.winAmount;
                                             const isPositive = thuTra >= 0;
                                             return (
-                                                <span className="text-lg">
-                                                    <span className={isPositive ? 'text-blue-600' : 'text-blue-600'}>Thu</span>/
-                                                    <span className={isPositive ? 'text-red-600' : 'text-red-600'}>Trả</span>:{' '}
+                                                <span className="text-base sm:text-lg">
+                                                    <span className="text-blue-600">Thu</span>/
+                                                    <span className="text-red-600">Trả</span>:{' '}
                                                     <span className={`font-bold ${isPositive ? 'text-blue-600' : 'text-red-600'}`}>
                                                         {formatMoney(thuTra)}
                                                     </span>
@@ -518,10 +531,57 @@ export default function ParserPage() {
                                 </div>
                             )}
                             
-                            {/* Bets Table - Gộp theo đài + kiểu cược */}
-                            <h3 className="font-semibold mb-3 text-slate-800">📋 Chi tiết cược ({result.parsedResult.bets.length} cược hợp lệ)</h3>
-                            <div className="overflow-x-auto border rounded-lg">
-                                <table className="w-full text-xs sm:text-sm min-w-[350px]">
+                            {/* Bets Detail */}
+                            <h3 className="font-semibold mb-3 text-slate-800 text-sm sm:text-base">
+                                📋 Chi tiết ({result.parsedResult.bets.length} cược)
+                            </h3>
+                            
+                            {/* Mobile: Card layout for bets */}
+                            <div className="sm:hidden space-y-2">
+                                {(() => {
+                                    const groupedBets = new Map<string, {
+                                        provinces: string;
+                                        type: string;
+                                        numbers: string[];
+                                        totalPoint: number;
+                                    }>();
+                                    
+                                    for (const bet of result.parsedResult?.bets || []) {
+                                        const key = `${bet.provinces.join(',')}_${bet.type}`;
+                                        const nums = Array.isArray(bet.numbers) ? bet.numbers : [bet.numbers];
+                                        
+                                        if (groupedBets.has(key)) {
+                                            const existing = groupedBets.get(key)!;
+                                            existing.numbers.push(...nums);
+                                            existing.totalPoint += bet.point;
+                                        } else {
+                                            groupedBets.set(key, {
+                                                provinces: bet.provinces.join(', '),
+                                                type: bet.type,
+                                                numbers: [...nums],
+                                                totalPoint: bet.point,
+                                            });
+                                        }
+                                    }
+                                    
+                                    return Array.from(groupedBets.values()).map((group, idx) => (
+                                        <div key={idx} className="p-3 bg-slate-50 rounded-lg border text-sm">
+                                            <div className="flex items-start justify-between mb-1">
+                                                <span className="font-medium text-slate-700">{group.provinces}</span>
+                                                <span className="text-blue-600 font-semibold">{group.totalPoint}đ</span>
+                                            </div>
+                                            <div className="text-xs text-slate-500 mb-1">{group.type}</div>
+                                            <div className="font-mono text-xs text-slate-600 break-all">
+                                                {group.numbers.join(' ')}
+                                            </div>
+                                        </div>
+                                    ));
+                                })()}
+                            </div>
+                            
+                            {/* Desktop: Table layout for bets */}
+                            <div className="hidden sm:block overflow-x-auto border rounded-lg">
+                                <table className="w-full text-sm">
                                     <thead className="bg-slate-50 border-b">
                                         <tr>
                                             <th className="px-3 py-2 text-left font-medium text-slate-600">Đài</th>
@@ -532,7 +592,6 @@ export default function ParserPage() {
                                     </thead>
                                     <tbody>
                                         {(() => {
-                                            // Gộp bets theo đài + kiểu cược
                                             const groupedBets = new Map<string, {
                                                 provinces: string;
                                                 type: string;
@@ -573,10 +632,10 @@ export default function ParserPage() {
                         </>
                     )}
                     
-                    {/* Không có bet nào hợp lệ (chỉ có lỗi) */}
+                    {/* Không có bet hợp lệ */}
                     {result.parsedResult?.bets?.length === 0 && !result.error && (
-                        <div className="text-orange-600 p-4 bg-orange-50 rounded-lg border border-orange-200">
-                            ⚠️ Không có cược hợp lệ nào được tạo. Vui lòng kiểm tra lỗi validation ở trên.
+                        <div className="text-orange-600 p-3 sm:p-4 bg-orange-50 rounded-lg border border-orange-200 text-sm">
+                            ⚠️ Không có cược hợp lệ. Vui lòng kiểm tra lỗi ở trên.
                         </div>
                     )}
                 </div>
