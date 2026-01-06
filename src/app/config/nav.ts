@@ -6,7 +6,8 @@ import {
     Settings,
     LucideIcon,
     FileText,
-    History
+    History,
+    Code
 } from "lucide-react";
 
 export type NavItem = {
@@ -51,6 +52,18 @@ export const sidebarLinks: NavItem[] = [
         title: "Tổng quan",
         href: "/agent",
         icon: LayoutDashboard,
+        roles: ["AGENT"],
+    },
+    {
+        title: "Cú pháp Đài",
+        href: "/agent/syntax/provinces",
+        icon: Map,
+        roles: ["AGENT"],
+    },
+    {
+        title: "Cú pháp Kiểu",
+        href: "/agent/syntax/bet-types",
+        icon: Code,
         roles: ["AGENT"],
     },
     {
