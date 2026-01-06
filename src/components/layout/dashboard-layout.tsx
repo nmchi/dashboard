@@ -18,7 +18,7 @@ export function DashboardLayout({ children, user }: DashboardLayoutProps) {
             <div className="flex-1 flex flex-col">
                 <Header user={user} />
                 
-                <main className="flex-1 p-8 overflow-y-auto">
+                <main className="flex-1 p-3 md:p-8 overflow-y-auto">
                     {children}
                 </main>
             </div>

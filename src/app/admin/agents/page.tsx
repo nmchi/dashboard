@@ -10,8 +10,8 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { format, differenceInDays, isPast } from "date-fns";
-import { vi } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
+import { Users, Calendar, Clock } from "lucide-react";
 
 // Helper: Format ngày hết hạn và trạng thái
 function formatExpiryStatus(expiresAt: Date | null) {
@@ -62,10 +62,11 @@ export default async function AdminAgentsPage() {
     });
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
+        <div className="space-y-4 sm:space-y-6">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-800">Quản lý Đại Lý</h1>
+                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-800">Quản lý Đại Lý</h1>
                     <p className="text-sm text-slate-500">
                         Tổng số: <span className="font-bold">{agents.length}</span> đại lý
                     </p>
@@ -73,8 +74,9 @@ export default async function AdminAgentsPage() {
                 <CreateAgentDialog />
             </div>
 
-            <div className="rounded-md border bg-white shadow-sm overflow-x-auto">
-                <Table className="min-w-[600px]">
+            {/* Desktop Table - Hidden on mobile */}
+            <div className="hidden md:block rounded-md border bg-white shadow-sm">
+                <Table>
                     <TableHeader>
                         <TableRow>
                             <TableHead>Tài khoản</TableHead>
@@ -127,7 +129,6 @@ export default async function AdminAgentsPage() {
                                         <TableCell className="text-slate-500 text-sm">
                                             {format(agent.createdAt, "dd/MM/yyyy")}
                                         </TableCell>
-                                        
                                         <TableCell className="text-right">
                                             <AgentActions 
                                                 userId={agent.id} 
@@ -142,6 +143,77 @@ export default async function AdminAgentsPage() {
                         )}
                     </TableBody>
                 </Table>
+            </div>
+
+            {/* Mobile Cards - Hidden on desktop */}
+            <div className="md:hidden space-y-3">
+                {agents.length === 0 ? (
+                    <div className="text-center py-10 text-slate-500 bg-white rounded-lg border">
+                        Chưa có đại lý nào. Hãy tạo đại lý đầu tiên!
+                    </div>
+                ) : (
+                    agents.map((agent) => {
+                        const expiryStatus = formatExpiryStatus(agent.expiresAt);
+                        const isExpired = agent.expiresAt && isPast(agent.expiresAt);
+                        
+                        return (
+                            <div 
+                                key={agent.id} 
+                                className={`bg-white rounded-lg border shadow-sm p-4 ${isExpired ? "border-red-200 bg-red-50/30" : ""}`}
+                            >
+                                {/* Header: Username + Actions */}
+                                <div className="flex items-start justify-between mb-3">
+                                    <div>
+                                        <span className="font-semibold text-blue-600">{agent.username}</span>
+                                        {agent.name && (
+                                            <p className="text-xs text-slate-500">{agent.name}</p>
+                                        )}
+                                    </div>
+                                    <AgentActions 
+                                        userId={agent.id} 
+                                        username={agent.username} 
+                                        isBanned={agent.banned}
+                                        expiresAt={agent.expiresAt}
+                                    />
+                                </div>
+                                
+                                {/* Status Badge */}
+                                <div className="mb-3">
+                                    {agent.banned ? (
+                                        <Badge variant="destructive">Đang khóa</Badge>
+                                    ) : isExpired ? (
+                                        <Badge variant="destructive">Hết hạn</Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                            Hoạt động
+                                        </Badge>
+                                    )}
+                                </div>
+                                
+                                {/* Info Grid */}
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                    <div className="flex items-center gap-1.5 text-slate-600">
+                                        <Clock className="h-3.5 w-3.5" />
+                                        <span className="text-slate-500">Hạn:</span>
+                                        <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${expiryStatus.color}`}>
+                                            {expiryStatus.text}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-slate-600">
+                                        <Users className="h-3.5 w-3.5" />
+                                        <span className="text-slate-500">Player:</span>
+                                        <span className="font-medium">{agent._count.children}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-slate-600 col-span-2">
+                                        <Calendar className="h-3.5 w-3.5" />
+                                        <span className="text-slate-500">Ngày tạo:</span>
+                                        <span>{format(agent.createdAt, "dd/MM/yyyy")}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
             </div>
         </div>
     );
