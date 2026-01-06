@@ -8,9 +8,20 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createAgent } from "@/server/admin/agent-actions"
 import { toast } from "sonner"
 import { UserPlus, Loader2, Eye, EyeOff } from "lucide-react"
+
+// Các gói thời hạn sử dụng
+const DURATION_OPTIONS = [
+    { value: "3", label: "3 ngày" },
+    { value: "7", label: "7 ngày" },
+    { value: "30", label: "1 tháng" },
+    { value: "90", label: "3 tháng" },
+    { value: "180", label: "6 tháng" },
+    { value: "365", label: "12 tháng" },
+];
 
 const formSchema = z.object({
     username: z.string()
@@ -22,6 +33,7 @@ const formSchema = z.object({
     phoneNumber: z.string().optional(),
     password: z.string().min(6, "Mật khẩu tối thiểu 6 ký tự"),
     confirmPassword: z.string().min(1, "Vui lòng xác nhận mật khẩu"),
+    durationDays: z.string().min(1, "Vui lòng chọn thời hạn sử dụng"),
 }).refine((data) => data.password === data.confirmPassword, {
     message: "Mật khẩu xác nhận không khớp",
     path: ["confirmPassword"],
@@ -35,7 +47,7 @@ export function CreateAgentDialog() {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-    const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+    const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             username: "",
@@ -44,8 +56,11 @@ export function CreateAgentDialog() {
             phoneNumber: "",
             password: "",
             confirmPassword: "",
+            durationDays: "30",
         }
     });
+
+    const selectedDuration = watch("durationDays");
 
     const onSubmit = async (data: FormValues) => {
         setLoading(true);
@@ -56,6 +71,7 @@ export function CreateAgentDialog() {
             email: data.email || undefined,
             phoneNumber: data.phoneNumber || undefined,
             password: data.password,
+            durationDays: parseInt(data.durationDays),
         });
         
         setLoading(false);
@@ -106,6 +122,29 @@ export function CreateAgentDialog() {
                         />
                         {errors.name && (
                             <p className="text-xs text-red-500">{errors.name.message}</p>
+                        )}
+                    </div>
+
+                    {/* Thời hạn sử dụng */}
+                    <div className="space-y-2">
+                        <Label>Thời hạn sử dụng <span className="text-red-500">*</span></Label>
+                        <Select 
+                            value={selectedDuration} 
+                            onValueChange={(value) => setValue("durationDays", value)}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Chọn thời hạn" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {DURATION_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {errors.durationDays && (
+                            <p className="text-xs text-red-500">{errors.durationDays.message}</p>
                         )}
                     </div>
 

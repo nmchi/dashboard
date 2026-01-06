@@ -9,8 +9,45 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { format } from "date-fns";
+import { format, differenceInDays, isPast } from "date-fns";
+import { vi } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
+
+// Helper: Format ngày hết hạn và trạng thái
+function formatExpiryStatus(expiresAt: Date | null) {
+    if (!expiresAt) {
+        return { text: "Không giới hạn", color: "bg-slate-100 text-slate-600" };
+    }
+    
+    const now = new Date();
+    const daysLeft = differenceInDays(expiresAt, now);
+    
+    if (isPast(expiresAt)) {
+        return { 
+            text: `Hết hạn ${format(expiresAt, "dd/MM/yyyy")}`, 
+            color: "bg-red-100 text-red-700" 
+        };
+    }
+    
+    if (daysLeft <= 3) {
+        return { 
+            text: `Còn ${daysLeft} ngày`, 
+            color: "bg-orange-100 text-orange-700" 
+        };
+    }
+    
+    if (daysLeft <= 7) {
+        return { 
+            text: `Còn ${daysLeft} ngày`, 
+            color: "bg-yellow-100 text-yellow-700" 
+        };
+    }
+    
+    return { 
+        text: format(expiresAt, "dd/MM/yyyy"), 
+        color: "bg-green-50 text-green-700" 
+    };
+}
 
 export default async function AdminAgentsPage() {
     const agents = await db.user.findMany({
@@ -40,9 +77,8 @@ export default async function AdminAgentsPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Tài khoản</TableHead>
-                            <TableHead>Tên hiển thị</TableHead>
-                            <TableHead>Email</TableHead>
                             <TableHead>Trạng thái</TableHead>
+                            <TableHead>Hạn sử dụng</TableHead>
                             <TableHead>Số Player</TableHead>
                             <TableHead>Ngày tạo</TableHead>
                             <TableHead className="text-right w-[100px]">Hành động</TableHead>
@@ -51,39 +87,57 @@ export default async function AdminAgentsPage() {
                     <TableBody>
                         {agents.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center py-10 text-slate-500">
+                                <TableCell colSpan={6} className="text-center py-10 text-slate-500">
                                     Chưa có đại lý nào. Hãy tạo đại lý đầu tiên!
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            agents.map((agent) => (
-                                <TableRow key={agent.id}>
-                                    <TableCell className="font-medium text-blue-600">{agent.username}</TableCell>
-                                    <TableCell>{agent.name}</TableCell>
-                                    <TableCell className="text-slate-500 text-sm">{agent.email || "-"}</TableCell>
-                                    <TableCell>
-                                        {agent.banned ? (
-                                            <Badge variant="destructive">Đang khóa</Badge>
-                                        ) : (
-                                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                                Hoạt động
-                                            </Badge>
-                                        )}
-                                    </TableCell>
-                                    <TableCell>{agent._count.children}</TableCell>
-                                    <TableCell className="text-slate-500 text-sm">
-                                        {format(agent.createdAt, "dd/MM/yyyy")}
-                                    </TableCell>
-                                    
-                                    <TableCell className="text-right">
-                                        <AgentActions 
-                                            userId={agent.id} 
-                                            username={agent.username} 
-                                            isBanned={agent.banned} 
-                                        />
-                                    </TableCell>
-                                </TableRow>
-                            ))
+                            agents.map((agent) => {
+                                const expiryStatus = formatExpiryStatus(agent.expiresAt);
+                                const isExpired = agent.expiresAt && isPast(agent.expiresAt);
+                                
+                                return (
+                                    <TableRow key={agent.id} className={isExpired ? "bg-red-50/50" : ""}>
+                                        <TableCell>
+                                            <div>
+                                                <span className="font-medium text-blue-600">{agent.username}</span>
+                                                {agent.name && (
+                                                    <p className="text-xs text-slate-500">{agent.name}</p>
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            {agent.banned ? (
+                                                <Badge variant="destructive">Đang khóa</Badge>
+                                            ) : isExpired ? (
+                                                <Badge variant="destructive">Hết hạn</Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                                    Hoạt động
+                                                </Badge>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            <span className={`px-2 py-1 rounded text-xs font-medium ${expiryStatus.color}`}>
+                                                {expiryStatus.text}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell>{agent._count.children}</TableCell>
+                                        <TableCell className="text-slate-500 text-sm">
+                                            {format(agent.createdAt, "dd/MM/yyyy")}
+                                        </TableCell>
+                                        
+                                        <TableCell className="text-right">
+                                            <AgentActions 
+                                                userId={agent.id} 
+                                                username={agent.username} 
+                                                isBanned={agent.banned}
+                                                expiresAt={agent.expiresAt}
+                                            />
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })
                         )}
                     </TableBody>
                 </Table>

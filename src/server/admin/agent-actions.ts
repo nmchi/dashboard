@@ -13,6 +13,7 @@ interface CreateAgentInput {
     email?: string;
     phoneNumber?: string;
     password: string;
+    durationDays: number; // Số ngày sử dụng
 }
 
 // 1. Action: Tạo đại lý mới
@@ -42,6 +43,10 @@ export async function createAgent(data: CreateAgentInput) {
         // Hash mật khẩu
         const hashedPassword = await hash(data.password, 12);
 
+        // Tính ngày hết hạn
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + data.durationDays);
+
         // Tạo user với role AGENT
         await db.user.create({
             data: {
@@ -52,6 +57,7 @@ export async function createAgent(data: CreateAgentInput) {
                 password: hashedPassword,
                 role: Role.AGENT,
                 mustChangePassword: true, // Yêu cầu đổi mật khẩu lần đầu
+                expiresAt: expiresAt, // Ngày hết hạn
                 betSettings: DEFAULT_BET_SETTINGS as unknown as Prisma.InputJsonValue,
                 accounts: {
                     create: {
@@ -139,5 +145,41 @@ export async function resetAgentPassword(userId: string, newPassword: string) {
     } catch (error) {
         console.error("Reset password error:", error);
         return { error: "Lỗi khi reset mật khẩu" };
+    }
+}
+
+// 5. Action: Gia hạn thời gian sử dụng cho Agent
+export async function extendAgentExpiry(userId: string, durationDays: number) {
+    try {
+        await requireAdmin();
+
+        const agent = await db.user.findUnique({
+            where: { id: userId },
+            select: { expiresAt: true }
+        });
+
+        if (!agent) {
+            return { error: "Không tìm thấy đại lý" };
+        }
+
+        // Nếu đã hết hạn, tính từ ngày hiện tại
+        // Nếu còn hạn, cộng thêm vào ngày hết hạn hiện tại
+        const baseDate = agent.expiresAt && agent.expiresAt > new Date() 
+            ? agent.expiresAt 
+            : new Date();
+        
+        const newExpiresAt = new Date(baseDate);
+        newExpiresAt.setDate(newExpiresAt.getDate() + durationDays);
+
+        await db.user.update({
+            where: { id: userId },
+            data: { expiresAt: newExpiresAt }
+        });
+
+        revalidatePath("/admin/agents");
+        return { success: true, message: `Đã gia hạn thêm ${durationDays} ngày` };
+    } catch (error) {
+        console.error("Extend expiry error:", error);
+        return { error: "Lỗi khi gia hạn" };
     }
 }
