@@ -19,32 +19,33 @@ function formatExpiryStatus(expiresAt: Date | null) {
         return { text: "Không giới hạn", color: "bg-slate-100 text-slate-600" };
     }
     
+    const formattedDate = format(expiresAt, "dd/MM/yyyy");
     const now = new Date();
     const daysLeft = differenceInDays(expiresAt, now);
     
     if (isPast(expiresAt)) {
         return { 
-            text: `Hết hạn ${format(expiresAt, "dd/MM/yyyy")}`, 
+            text: formattedDate, 
             color: "bg-red-100 text-red-700" 
         };
     }
     
     if (daysLeft <= 3) {
         return { 
-            text: `Còn ${daysLeft} ngày`, 
+            text: formattedDate, 
             color: "bg-orange-100 text-orange-700" 
         };
     }
     
     if (daysLeft <= 7) {
         return { 
-            text: `Còn ${daysLeft} ngày`, 
+            text: formattedDate, 
             color: "bg-yellow-100 text-yellow-700" 
         };
     }
     
     return { 
-        text: format(expiresAt, "dd/MM/yyyy"), 
+        text: formattedDate, 
         color: "bg-green-50 text-green-700" 
     };
 }
