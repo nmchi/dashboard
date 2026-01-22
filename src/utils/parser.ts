@@ -130,7 +130,7 @@ function parseNormalizedMessage(
 
         // Kiểm tra số
         if (/^\d+$/.test(part)) {
-            if (lastPartType === 'point' || lastPartType === 'betType') {
+            if (lastPartType === 'point') {
                 currentNumbers = [part];
             } else {
                 currentNumbers.push(part);
@@ -173,6 +173,10 @@ function parseNormalizedMessage(
                     numbers: currentNumbers,
                     provinces: currentProvinces.map(p => p.name),
                 });
+                // Reset currentNumbers để tránh số bị tích lũy cho bet type tiếp theo
+                currentNumbers = [];
+                // Reset lastPartType để số tiếp theo không bị hiểu nhầm là điểm
+                lastPartType = 'none';
                 continue; // Bỏ qua, không tạo bet
             }
 

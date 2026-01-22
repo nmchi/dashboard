@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useSession } from "@/lib/auth-client";
 import { Region } from "@prisma/client";
 import { ParseMessageResponse, ParseError } from "@/types/messages";
+import ErrorHighlightTextarea from "@/components/error-highlight-textarea";
+import { toast } from "sonner";
 
 interface Player {
     id: string;
@@ -25,14 +27,14 @@ interface ExtendedTotalsByType {
 
 export default function ParserPage() {
     const { data: session } = useSession();
-    
+
     // Form state
     const [players, setPlayers] = useState<Player[]>([]);
     const [selectedPlayerId, setSelectedPlayerId] = useState("");
     const [message, setMessage] = useState("");
     const [region, setRegion] = useState<Region>(Region.MN);
     const [drawDate, setDrawDate] = useState(new Date().toISOString().split('T')[0]);
-    
+
     // UI state
     const [loadingPlayers, setLoadingPlayers] = useState(true);
     const [loading, setLoading] = useState(false);
@@ -44,11 +46,11 @@ export default function ParserPage() {
     useEffect(() => {
         const fetchPlayers = async () => {
             if (!session?.user?.id) return;
-            
+
             try {
                 const res = await fetch(`/api/users?parentId=${session.user.id}&role=PLAYER`);
                 const data = await res.json();
-                
+
                 if (data.success) {
                     setPlayers(data.data);
                     if (data.data.length > 0) {
@@ -61,17 +63,17 @@ export default function ParserPage() {
                 setLoadingPlayers(false);
             }
         };
-        
+
         fetchPlayers();
     }, [session?.user?.id]);
 
     const handleParse = async () => {
         if (!message.trim() || !selectedPlayerId) return;
-        
+
         setLoading(true);
         setResult(null);
         setTotalsByType(null);
-        
+
         try {
             const res = await fetch('/api/tickets/parse', {
                 method: 'POST',
@@ -83,17 +85,38 @@ export default function ParserPage() {
                     drawDate,
                 }),
             });
-            
+
             const data: ParseMessageResponse = await res.json();
             setResult(data);
-            
+
+            // Hiển thị lỗi qua toast - gộp tất cả lỗi thành 1 toast
+            if (!data.success && data.error) {
+                toast.error(data.error);
+            } else if (data.parsedResult?.errors && data.parsedResult.errors.length > 0) {
+                // Gộp tất cả lỗi validation thành 1 message
+                const errorMessages = data.parsedResult.errors.map((err) =>
+                    `${err.type}: ${err.message}${err.numbers && err.numbers.length > 0 ? ` (số: ${err.numbers.join(', ')})` : ''}`
+                );
+                toast.error(
+                    <div>
+                        <div className="font-semibold mb-1">Lỗi cú pháp ({data.parsedResult.errors.length})</div>
+                        {errorMessages.map((msg, idx) => (
+                            <div key={idx} className="text-sm">• {msg}</div>
+                        ))}
+                    </div>,
+                    { duration: 5000 }
+                );
+            }
+
             // Tính toán lại totalsByType với xac
             if (data.parsedResult?.bets && data.parsedResult.bets.length > 0) {
                 const totals = calculateTotalsWithXac(data.parsedResult.bets);
                 setTotalsByType(totals);
             }
         } catch (error) {
-            setResult({ success: false, error: 'Lỗi kết nối server' });
+            const errorMsg = 'Lỗi kết nối server';
+            setResult({ success: false, error: errorMsg });
+            toast.error(errorMsg);
         } finally {
             setLoading(false);
         }
@@ -101,7 +124,7 @@ export default function ParserPage() {
 
     const handleSave = async () => {
         if (!result?.success || !selectedPlayerId) return;
-        
+
         // Kiểm tra có lỗi validation không
         if (result.parsedResult?.errors && result.parsedResult.errors.length > 0) {
             const confirm = window.confirm(
@@ -109,9 +132,9 @@ export default function ParserPage() {
             );
             if (!confirm) return;
         }
-        
+
         setSaving(true);
-        
+
         try {
             const res = await fetch('/api/tickets', {
                 method: 'POST',
@@ -123,9 +146,9 @@ export default function ParserPage() {
                     drawDate,
                 }),
             });
-            
+
             const data = await res.json();
-            
+
             if (data.success) {
                 alert('Đã lưu tin nhắn thành công!');
                 setMessage("");
@@ -162,7 +185,7 @@ export default function ParserPage() {
      */
     const calculateTotalsWithXac = (bets: NonNullable<ParseMessageResponse['parsedResult']>['bets']): ExtendedTotalsByType => {
         const emptyTotal = () => ({ xac: 0, amount: 0, winAmount: 0, winPoints: 0 });
-        
+
         const totals: ExtendedTotalsByType = {
             "2c-dd": emptyTotal(),
             "2c-b": emptyTotal(),
@@ -172,21 +195,21 @@ export default function ParserPage() {
             "dax": emptyTotal(),
             "total": emptyTotal(),
         };
-        
+
         for (const bet of bets) {
             let category: keyof ExtendedTotalsByType = "total";
             const numCount = Array.isArray(bet.numbers) ? bet.numbers.length : 1;
             const provinceCount = bet.provinces.length;
             const numDigits = (Array.isArray(bet.numbers) ? bet.numbers[0] : bet.numbers).length;
-            
+
             let loMultiplier = 1;
-            
+
             if (bet.type === 'Đầu' || bet.type === 'Đuôi' || bet.type === 'Đầu đuôi') {
                 category = "2c-dd";
                 loMultiplier = 1;
             } else if (bet.type === 'Bao lô' || bet.type === 'Bao đảo') {
                 loMultiplier = getLoCount(numDigits, region);
-                
+
                 if (numDigits === 2) category = "2c-b";
                 else if (numDigits === 3) category = "3c";
                 else if (numDigits === 4) category = "4c";
@@ -200,16 +223,16 @@ export default function ParserPage() {
                 category = "dax";
                 loMultiplier = -1;
             }
-            
+
             let xac: number;
-            
+
             if (bet.type === 'Đá xiên') {
                 const loCount2 = getLoCount(2, region);
                 const combinationFactor = numCount === 2 ? 1 : (numCount * (numCount - 1)) / 2;
                 let stationMultiplier = 1;
                 if (provinceCount === 3) stationMultiplier = 3;
                 else if (provinceCount >= 4) stationMultiplier = 6;
-                
+
                 xac = bet.point * 1000 * (loCount2 * 2) * combinationFactor * stationMultiplier * 2;
             } else if (bet.type === 'Đá' || bet.type === 'Đá thẳng') {
                 const combinationFactor = numCount === 2 ? 1 : (numCount * (numCount - 1)) / 2;
@@ -217,20 +240,20 @@ export default function ParserPage() {
             } else {
                 xac = bet.point * 1000 * provinceCount * numCount * loMultiplier;
             }
-            
+
             const winPoints = bet.point * (bet.winCount || 0);
-            
+
             totals[category].xac += xac;
             totals[category].amount += bet.amount;
             totals[category].winAmount += bet.winAmount || 0;
             totals[category].winPoints += winPoints;
-            
+
             totals.total.xac += xac;
             totals.total.amount += bet.amount;
             totals.total.winAmount += bet.winAmount || 0;
             totals.total.winPoints += winPoints;
         }
-        
+
         return totals;
     };
 
@@ -242,12 +265,12 @@ export default function ParserPage() {
         const isNegative = amount < 0;
         const absAmount = Math.abs(amount);
         const thousands = absAmount / 1000;
-        
+
         const fixed = thousands.toFixed(1);
         const [intPart, decPart] = fixed.split('.');
-        
+
         const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-        
+
         return `${isNegative ? '-' : ''}${formattedInt}.${decPart}`;
     };
 
@@ -272,7 +295,7 @@ export default function ParserPage() {
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Máy Quét Tin</h1>
                 <p className="text-slate-500 text-sm">Nhập tin nhắn cược cho khách hàng</p>
             </div>
-            
+
             {/* Input Section */}
             <div className="bg-white rounded-lg border shadow-sm p-4 sm:p-6">
                 {/* Form Grid - Stack on mobile */}
@@ -289,7 +312,7 @@ export default function ParserPage() {
                                 Chưa có khách. <a href="/agent/players" className="underline font-medium">Tạo mới</a>
                             </div>
                         ) : (
-                            <select 
+                            <select
                                 value={selectedPlayerId}
                                 onChange={(e) => {
                                     setSelectedPlayerId(e.target.value);
@@ -306,11 +329,11 @@ export default function ParserPage() {
                             </select>
                         )}
                     </div>
-                    
+
                     {/* Chọn Miền */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Miền</label>
-                        <select 
+                        <select
                             value={region}
                             onChange={(e) => {
                                 setRegion(e.target.value as Region);
@@ -324,11 +347,11 @@ export default function ParserPage() {
                             <option value={Region.MB}>Miền Bắc</option>
                         </select>
                     </div>
-                    
+
                     {/* Chọn Ngày */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Ngày xổ</label>
-                        <input 
+                        <input
                             type="date"
                             value={drawDate}
                             onChange={(e) => {
@@ -340,31 +363,32 @@ export default function ParserPage() {
                         />
                     </div>
                 </div>
-                
+
                 {/* Hiển thị Player đang chọn */}
                 {selectedPlayer && (
                     <div className="mb-4 p-2.5 sm:p-3 bg-blue-50 rounded-lg text-sm border border-blue-100">
                         <span className="text-blue-600">📝</span> Đang nhập cho: <strong className="text-blue-700">{selectedPlayer.name || selectedPlayer.username}</strong>
                     </div>
                 )}
-                
+
                 {/* Tin nhắn */}
                 <div className="mb-4">
                     <label className="block text-sm font-medium mb-1">
                         Tin nhắn <span className="text-red-500">*</span>
                     </label>
-                    <textarea
+                    <ErrorHighlightTextarea
                         value={message}
-                        onChange={(e) => setMessage(e.target.value)}
+                        onChange={setMessage}
+                        errors={validationErrors}
                         placeholder="Ví dụ: vl 12 34 dd 1n&#10;tg bl 56 78 2n&#10;ag bt 11 66 dx 5"
-                        className="w-full border rounded-lg px-3 py-2 h-28 sm:h-32 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="border rounded-lg h-28 sm:h-32 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
                         disabled={!selectedPlayerId}
                     />
                     <p className="text-xs text-slate-500 mt-1 hidden sm:block">
                         Cú pháp: [đài] [số] [kiểu] [điểm] - Ví dụ: vl 12 dd 1n = Vĩnh Long, số 12, đầu đuôi, 1 nghìn
                     </p>
                 </div>
-                
+
                 {/* Buttons */}
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                     <button
@@ -374,66 +398,35 @@ export default function ParserPage() {
                     >
                         {loading ? 'Đang xử lý...' : '🔍 Phân tích'}
                     </button>
-                    
-                    {result?.success && result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
+
+                    {result?.success && !hasValidationErrors && result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
                         <button
                             onClick={handleSave}
                             disabled={saving}
-                            className={`w-full sm:w-auto px-4 sm:px-6 py-2.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base ${
-                                hasValidationErrors 
-                                    ? 'bg-orange-500 hover:bg-orange-600 text-white' 
-                                    : 'bg-green-600 hover:bg-green-700 text-white'
-                            }`}
+                            className={`w-full sm:w-auto px-4 sm:px-6 py-2.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base ${hasValidationErrors
+                                ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                                : 'bg-green-600 hover:bg-green-700 text-white'
+                                }`}
                         >
                             {saving ? 'Đang lưu...' : hasValidationErrors ? '⚠️ Lưu (có lỗi)' : '💾 Lưu tin nhắn'}
                         </button>
                     )}
                 </div>
             </div>
-            
-            {/* Result Section */}
-            {result && (
+
+            {/* Result Section - chỉ hiển thị khi thành công */}
+            {result && result.success && !hasValidationErrors && result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
                 <div className="bg-white rounded-lg border shadow-sm p-4 sm:p-6">
-                    {/* Hiển thị lỗi chính */}
-                    {!result.success && result.error && (
-                        <div className="text-red-600 p-3 sm:p-4 bg-red-50 rounded-lg border border-red-200 mb-4 text-sm">
-                            ❌ {result.error}
-                        </div>
-                    )}
-                    
-                    {/* Hiển thị lỗi validation */}
-                    {hasValidationErrors && (
-                        <div className="mb-4 p-3 sm:p-4 bg-orange-50 rounded-lg border border-orange-200">
-                            <h4 className="font-semibold text-orange-700 mb-2 flex items-center gap-2 text-sm sm:text-base">
-                                ⚠️ Lỗi validation ({validationErrors.length})
-                            </h4>
-                            <ul className="space-y-1.5 sm:space-y-2">
-                                {validationErrors.map((err, idx) => (
-                                    <li key={idx} className="text-xs sm:text-sm text-orange-800 flex items-start gap-2">
-                                        <span className="text-orange-500">•</span>
-                                        <div>
-                                            <span className="font-medium">{err.type}:</span> {err.message}
-                                            {err.numbers && err.numbers.length > 0 && (
-                                                <span className="ml-1 text-orange-600">
-                                                    (số: {err.numbers.join(', ')})
-                                                </span>
-                                            )}
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-                    
-                    {/* Kết quả parse thành công */}
-                    {result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
+
+                    {/* Kết quả parse thành công (không có lỗi) */}
+                    {result.success && !hasValidationErrors && result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
                         <>
                             {/* Normalized Message */}
                             <div className="mb-4 p-2.5 sm:p-3 bg-slate-100 rounded-lg">
                                 <span className="text-xs sm:text-sm text-slate-600 block mb-1">Tin nhắn đã chuẩn hóa:</span>
                                 <p className="font-mono text-xs sm:text-sm whitespace-pre-wrap break-all">{result.normalizedMessage}</p>
                             </div>
-                            
+
                             {/* Summary Table */}
                             {totalsByType && (
                                 <div className="mb-4 sm:mb-6">
@@ -448,7 +441,7 @@ export default function ParserPage() {
                                                     <span className="font-medium text-slate-700">{categoryLabels[key]}</span>
                                                     <div className="text-right">
                                                         <div className="text-slate-600">
-                                                            <span className="text-slate-400 text-xs">Xác:</span> {formatMoney(data.xac)} | 
+                                                            <span className="text-slate-400 text-xs">Xác:</span> {formatMoney(data.xac)} |
                                                             <span className="text-slate-400 text-xs ml-1">Thu:</span> {formatMoney(data.amount)}
                                                         </div>
                                                         <div className="text-xs text-slate-500">
@@ -463,7 +456,7 @@ export default function ParserPage() {
                                             <span className="font-semibold">Tổng</span>
                                             <div className="text-right">
                                                 <div>
-                                                    <span className="text-slate-300 text-xs">Xác:</span> {formatMoney(totalsByType.total.xac)} | 
+                                                    <span className="text-slate-300 text-xs">Xác:</span> {formatMoney(totalsByType.total.xac)} |
                                                     <span className="text-slate-300 text-xs ml-1">Thu:</span> {formatMoney(totalsByType.total.amount)}
                                                 </div>
                                                 <div className="text-xs text-slate-300">
@@ -472,7 +465,7 @@ export default function ParserPage() {
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     {/* Desktop: Table layout */}
                                     <div className="hidden sm:block overflow-x-auto border rounded-lg">
                                         <table className="w-full text-sm">
@@ -511,7 +504,7 @@ export default function ParserPage() {
                                             </tbody>
                                         </table>
                                     </div>
-                                    
+
                                     {/* Thu/Trả */}
                                     <div className="mt-3 text-right">
                                         {(() => {
@@ -530,12 +523,12 @@ export default function ParserPage() {
                                     </div>
                                 </div>
                             )}
-                            
+
                             {/* Bets Detail */}
                             <h3 className="font-semibold mb-3 text-slate-800 text-sm sm:text-base">
                                 📋 Chi tiết ({result.parsedResult.bets.length} cược)
                             </h3>
-                            
+
                             {/* Mobile: Card layout for bets */}
                             <div className="sm:hidden space-y-2">
                                 {(() => {
@@ -545,11 +538,11 @@ export default function ParserPage() {
                                         numbers: string[];
                                         totalPoint: number;
                                     }>();
-                                    
+
                                     for (const bet of result.parsedResult?.bets || []) {
                                         const key = `${bet.provinces.join(',')}_${bet.type}`;
                                         const nums = Array.isArray(bet.numbers) ? bet.numbers : [bet.numbers];
-                                        
+
                                         if (groupedBets.has(key)) {
                                             const existing = groupedBets.get(key)!;
                                             existing.numbers.push(...nums);
@@ -563,7 +556,7 @@ export default function ParserPage() {
                                             });
                                         }
                                     }
-                                    
+
                                     return Array.from(groupedBets.values()).map((group, idx) => (
                                         <div key={idx} className="p-3 bg-slate-50 rounded-lg border text-sm">
                                             <div className="flex items-start justify-between mb-1">
@@ -578,7 +571,7 @@ export default function ParserPage() {
                                     ));
                                 })()}
                             </div>
-                            
+
                             {/* Desktop: Table layout for bets */}
                             <div className="hidden sm:block overflow-x-auto border rounded-lg">
                                 <table className="w-full text-sm">
@@ -598,11 +591,11 @@ export default function ParserPage() {
                                                 numbers: string[];
                                                 totalPoint: number;
                                             }>();
-                                            
+
                                             for (const bet of result.parsedResult?.bets || []) {
                                                 const key = `${bet.provinces.join(',')}_${bet.type}`;
                                                 const nums = Array.isArray(bet.numbers) ? bet.numbers : [bet.numbers];
-                                                
+
                                                 if (groupedBets.has(key)) {
                                                     const existing = groupedBets.get(key)!;
                                                     existing.numbers.push(...nums);
@@ -616,7 +609,7 @@ export default function ParserPage() {
                                                     });
                                                 }
                                             }
-                                            
+
                                             return Array.from(groupedBets.values()).map((group, idx) => (
                                                 <tr key={idx} className="border-t hover:bg-slate-50">
                                                     <td className="px-3 py-2">{group.provinces}</td>
@@ -631,7 +624,7 @@ export default function ParserPage() {
                             </div>
                         </>
                     )}
-                    
+
                     {/* Không có bet hợp lệ */}
                     {result.parsedResult?.bets?.length === 0 && !result.error && (
                         <div className="text-orange-600 p-3 sm:p-4 bg-orange-50 rounded-lg border border-orange-200 text-sm">
