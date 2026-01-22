@@ -33,6 +33,13 @@ export interface BetSettings {
     price4lmt: number; win4lmt: number;
     pricedamt: number; windamt: number;
     pricedxmt: number; windxmt: number;
+
+    // --- KI RƯỠI ---
+    // true = Tính Ki rưỡi (min count) - áp dụng cho cả Đá thẳng và Đá xiên
+    // false = Tính Ki (exact count equality)
+    kiruoimn?: boolean;  // Ki rưỡi miền nam
+    kiruoimb?: boolean;  // Ki rưỡi miền bắc
+    kiruoimt?: boolean;  // Ki rưỡi miền trung
 }
 
 // Cấu hình mặc định (Template) - Dùng khi Agent chưa có cấu hình riêng hoặc khi tạo mới
@@ -71,6 +78,11 @@ export const DEFAULT_BET_SETTINGS: BetSettings = {
     price4lmt: 75, win4lmt: 5500,
     pricedamt: 75, windamt: 750,
     pricedxmt: 75, windxmt: 550,
+
+    // Ki rưỡi (mặc định true = Ki rưỡi)
+    kiruoimn: true,
+    kiruoimb: true,
+    kiruoimt: true,
 };
 
 /**

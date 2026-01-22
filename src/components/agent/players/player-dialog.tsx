@@ -21,14 +21,14 @@ const formSchema = z.object({
     name: z.string().min(1, "Tên khách không được để trống"),
     phoneNumber: z.string().optional(),
     banned: z.boolean().default(false),
-    betSettings: z.record(z.string(), z.number())
+    betSettings: z.record(z.string(), z.union([z.number(), z.boolean()]))
 })
 
 export type PlayerFormValues = {
     name: string;
     phoneNumber?: string;
     banned: boolean;
-    betSettings: BetSettings; 
+    betSettings: BetSettings;
 };
 
 interface PlayerDialogProps {
@@ -38,7 +38,7 @@ interface PlayerDialogProps {
         phoneNumber: string | null;
         name: string | null;
         banned: boolean;
-        betSettings: unknown; 
+        betSettings: unknown;
     }
 }
 
@@ -66,8 +66,8 @@ export function PlayerDialog({ player }: PlayerDialogProps) {
     const isEdit = !!player;
 
     // Lấy cấu hình hiện tại hoặc dùng mặc định
-    const initialSettings = player?.betSettings 
-        ? (player.betSettings as BetSettings) 
+    const initialSettings = player?.betSettings
+        ? (player.betSettings as BetSettings)
         : DEFAULT_BET_SETTINGS;
 
     const { register, handleSubmit, reset, setValue, control, formState: { errors } } = useForm<PlayerFormValues>({
@@ -91,20 +91,20 @@ export function PlayerDialog({ player }: PlayerDialogProps) {
     const onSubmit: SubmitHandler<PlayerFormValues> = async (data) => {
         setLoading(true);
         const payload = { ...data, betSettings: data.betSettings };
-        
+
         // Gọi Server Action
-        const res = isEdit 
-            ? await updatePlayer(player.id, payload) 
+        const res = isEdit
+            ? await updatePlayer(player.id, payload)
             : await createPlayer(payload);
-            
+
         setLoading(false);
-        
+
         if (res.error) {
             toast.error(res.error);
         } else {
             toast.success(res.message);
             setOpen(false);
-            if(!isEdit) reset();
+            if (!isEdit) reset();
         }
     };
 
@@ -115,30 +115,30 @@ export function PlayerDialog({ player }: PlayerDialogProps) {
                     <Button variant="ghost" size="icon" className="h-8 w-8"><Pencil className="h-4 w-4" /></Button>
                 ) : (
                     <Button className="gap-2 whitespace-nowrap">
-                        <UserPlus className="h-4 w-4" /> 
+                        <UserPlus className="h-4 w-4" />
                         <span className="hidden sm:inline">Thêm Khách</span>
                         <span className="sm:hidden">Thêm</span>
                     </Button>
                 )}
             </DialogTrigger>
-            
+
             <DialogContent className="max-w-4xl w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto p-3 sm:p-6">
                 <DialogHeader>
                     <DialogTitle className="text-lg sm:text-xl">
                         {isEdit ? `Sửa: ${player?.name || "Khách"}` : "Thêm Khách Mới"}
                     </DialogTitle>
                 </DialogHeader>
-                
+
                 <form onSubmit={handleSubmit(onSubmit)}>
                     <Tabs defaultValue="info" className="w-full">
                         <TabsList className="grid w-full grid-cols-2 h-auto">
                             <TabsTrigger value="info" className="gap-1.5 text-xs sm:text-sm py-2.5">
-                                <User className="h-3.5 w-3.5 sm:h-4 sm:w-4"/> 
+                                <User className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                 <span className="hidden sm:inline">Thông tin</span>
                                 <span className="sm:hidden">Thông tin</span>
                             </TabsTrigger>
                             <TabsTrigger value="config" className="gap-1.5 text-xs sm:text-sm py-2.5">
-                                <Settings2 className="h-3.5 w-3.5 sm:h-4 sm:w-4"/> 
+                                <Settings2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                 <span className="hidden sm:inline">Cấu hình Thu & Trúng</span>
                                 <span className="sm:hidden">Cấu hình</span>
                             </TabsTrigger>
@@ -160,13 +160,13 @@ export function PlayerDialog({ player }: PlayerDialogProps) {
                                     <Input {...register("phoneNumber")} placeholder="09..." />
                                 </div>
                             </div>
-                            
+
                             {isEdit && (
                                 <div className="flex items-center gap-2 pt-2 p-3 bg-slate-50 border rounded mt-2">
-                                    <Checkbox 
-                                        id="ban" 
-                                        checked={isBanned} 
-                                        onCheckedChange={(c) => setValue("banned", !!c)} 
+                                    <Checkbox
+                                        id="ban"
+                                        checked={isBanned}
+                                        onCheckedChange={(c) => setValue("banned", !!c)}
                                     />
                                     <Label htmlFor="ban" className="text-red-600 font-medium cursor-pointer text-sm">
                                         Khóa tài khoản (Tạm dừng cược)
@@ -178,20 +178,71 @@ export function PlayerDialog({ player }: PlayerDialogProps) {
                         {/* --- TAB 2: CẤU HÌNH GIÁ --- */}
                         <TabsContent value="config" className="py-4">
                             <div className="flex flex-col gap-6 max-w-xl mx-auto">
-                                
+
+                                {/* KI RƯỠI SETTINGS - Top Section */}
+                                <div className="border-2 border-purple-300 p-4 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 shadow-md space-y-3">
+                                    <h3 className="font-bold text-purple-800 text-center text-base sm:text-lg flex items-center justify-center gap-2">
+                                        <span>⚙️</span> CẤU HÌNH KI / KI RƯỠI
+                                    </h3>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        {/* Miền Nam */}
+                                        <div className="flex items-start gap-2 p-3 bg-white rounded-lg border border-blue-200">
+                                            <Checkbox
+                                                id="kiruoimn"
+                                                checked={useWatch({ control, name: "betSettings.kiruoimn" }) !== false}
+                                                onCheckedChange={(c) => setValue("betSettings.kiruoimn", !!c)}
+                                            />
+                                            <div className="flex-1">
+                                                <Label htmlFor="kiruoimn" className="text-sm font-semibold cursor-pointer text-blue-700">
+                                                    Miền Nam
+                                                </Label>
+                                            </div>
+                                        </div>
+
+                                        {/* Miền Trung */}
+                                        <div className="flex items-start gap-2 p-3 bg-white rounded-lg border border-orange-200">
+                                            <Checkbox
+                                                id="kiruoimt"
+                                                checked={useWatch({ control, name: "betSettings.kiruoimt" }) !== false}
+                                                onCheckedChange={(c) => setValue("betSettings.kiruoimt", !!c)}
+                                            />
+                                            <div className="flex-1">
+                                                <Label htmlFor="kiruoimt" className="text-sm font-semibold cursor-pointer text-orange-700">
+                                                    Miền Trung
+                                                </Label>
+                                            </div>
+                                        </div>
+
+                                        {/* Miền Bắc */}
+                                        <div className="flex items-start gap-2 p-3 bg-white rounded-lg border border-red-200">
+                                            <Checkbox
+                                                id="kiruoimb"
+                                                checked={useWatch({ control, name: "betSettings.kiruoimb" }) !== false}
+                                                onCheckedChange={(c) => setValue("betSettings.kiruoimb", !!c)}
+                                            />
+                                            <div className="flex-1">
+                                                <Label htmlFor="kiruoimb" className="text-sm font-semibold cursor-pointer text-red-700">
+                                                    Miền Bắc
+                                                </Label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* 1. MIỀN NAM */}
                                 <div className="border p-3 sm:p-4 rounded-lg bg-blue-50/50 shadow-sm space-y-3">
                                     <h3 className="font-bold text-blue-700 text-center border-b border-blue-200 pb-2 text-base sm:text-lg">
                                         MIỀN NAM (MN)
                                     </h3>
-                                    
+
                                     {/* Header cột */}
                                     <div className="grid grid-cols-[1fr_1fr_1fr] sm:grid-cols-[80px_1fr_1fr] gap-2 text-center text-[10px] sm:text-xs font-bold text-slate-500 border-b pb-2">
                                         <span></span>
                                         <span>THU</span>
                                         <span>TRẢ</span>
                                     </div>
-                                    
+
                                     <div className="space-y-2">
                                         <SettingRow label="2D-DAU" priceField="betSettings.price2daumn" winField="betSettings.win2daumn" register={register} />
                                         <SettingRow label="2D-DUOI" priceField="betSettings.price2duoimn" winField="betSettings.win2duoimn" register={register} />
@@ -211,14 +262,14 @@ export function PlayerDialog({ player }: PlayerDialogProps) {
                                     <h3 className="font-bold text-orange-700 text-center border-b border-orange-200 pb-2 text-base sm:text-lg">
                                         MIỀN TRUNG (MT)
                                     </h3>
-                                    
+
                                     {/* Header cột */}
                                     <div className="grid grid-cols-[1fr_1fr_1fr] sm:grid-cols-[80px_1fr_1fr] gap-2 text-center text-[10px] sm:text-xs font-bold text-slate-500 border-b pb-2">
                                         <span></span>
                                         <span>THU</span>
                                         <span>TRẢ</span>
                                     </div>
-                                    
+
                                     <div className="space-y-2">
                                         <SettingRow label="2D-DAU" priceField="betSettings.price2daumt" winField="betSettings.win2daumt" register={register} />
                                         <SettingRow label="2D-DUOI" priceField="betSettings.price2duoimt" winField="betSettings.win2duoimt" register={register} />
@@ -238,14 +289,14 @@ export function PlayerDialog({ player }: PlayerDialogProps) {
                                     <h3 className="font-bold text-red-700 text-center border-b border-red-200 pb-2 text-base sm:text-lg">
                                         MIỀN BẮC (MB)
                                     </h3>
-                                    
+
                                     {/* Header cột */}
                                     <div className="grid grid-cols-[1fr_1fr_1fr] sm:grid-cols-[80px_1fr_1fr] gap-2 text-center text-[10px] sm:text-xs font-bold text-slate-500 border-b pb-2">
                                         <span></span>
                                         <span>THU</span>
                                         <span>TRẢ</span>
                                     </div>
-                                    
+
                                     <div className="space-y-2">
                                         <SettingRow label="2D-DAU" priceField="betSettings.price2daumb" winField="betSettings.win2daumb" register={register} />
                                         <SettingRow label="2D-DUOI" priceField="betSettings.price2duoimb" winField="betSettings.win2duoimb" register={register} />

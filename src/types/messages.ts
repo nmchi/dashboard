@@ -8,21 +8,21 @@ export interface BetSettings {
         mt?: PriceSettings;
         mb?: PriceSettings;
     };
-    
+
     // Tỷ lệ thắng (x lần)
     winRates: {
         mn: WinSettings;
         mt?: WinSettings;
         mb?: WinSettings;
     };
-    
+
     // Đài ưu tiên theo ngày
     priorityProvinces?: {
         [region: string]: {
-        [dayOfWeek: number]: {
-            provinceId: string;
-            priority: number;
-        }[];
+            [dayOfWeek: number]: {
+                provinceId: string;
+                priority: number;
+            }[];
         };
     };
 }
@@ -38,6 +38,11 @@ export interface PriceSettings {
     price4lo: number;     // Giá bao lô 4 số
     priceda: number;      // Giá đá thẳng
     pricedx: number;      // Giá đá xiên
+
+    // Ki rưỡi (áp dụng cho cả Đá thẳng và Đá xiên)
+    // true = Tính Ki rưỡi (min count)
+    // false = Tính Ki (exact count equality)
+    kiruoi?: boolean;
 }
 
 export interface WinSettings {
@@ -67,6 +72,7 @@ export const DEFAULT_BET_SETTINGS: BetSettings = {
             price4lo: 75,
             priceda: 75,
             pricedx: 75,
+            kiruoi: true,
         },
     },
     winRates: {
