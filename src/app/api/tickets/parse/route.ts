@@ -42,9 +42,10 @@ export async function POST(req: NextRequest) {
         const betSettings = convertFlatToNested(flatSettings, region) as unknown as BetSettings;
 
         const date = drawDate ? new Date(drawDate) : new Date();
-        const [todayProvinces, betTypes] = await Promise.all([
+        const [todayProvinces, betTypes, allProvinces] = await Promise.all([
             getProvincesByDay(region, date),
             db.betType.findMany(),
+            db.lotteryProvince.findMany({ where: { region } }),
         ]);
 
         if (todayProvinces.length === 0) {
@@ -60,7 +61,8 @@ export async function POST(req: NextRequest) {
             betTypes,
             betSettings,
             region,
-            date
+            date,
+            allProvinces
         );
 
         const normalizedMessage = normalizeMessage(
@@ -341,68 +343,108 @@ function calculateWin(
             }
         }
         else if (numbers.length === 3) {
-            // ===== XIÊN 3 + XIÊN 2 =====
+            // ===== XIÊN 3 ===== (phân biệt 1 đài vs 2+ đài)
             const [n1, n2, n3] = numbers;
             const c1 = countMap[n1] || 0;
             const c2 = countMap[n2] || 0;
             const c3 = countMap[n3] || 0;
 
-            let totalAmount = 0;
-            let totalCount = 0;
+            const provinceCount = bet.provinces.length;
 
-            if (useKiRuoi) {
-                // KI RƯỠI (true): Logic cũ
-                // Xiên 3: Giá = winRate × 2
-                const minCount3 = Math.min(c1, c2, c3);
-                if (minCount3 > 0) {
-                    totalAmount += minCount3 * bet.point * 1000 * (winRate * 2);
-                    totalCount += minCount3;
+            if (provinceCount === 1) {
+                // === 1 ĐÀI: Cascading logic (xiên 3 → xiên 2 từ remain) ===
+                let totalAmount = 0;
+                let totalCount = 0;
+
+                if (useKiRuoi) {
+                    // KI RƯỠI (true)
+                    // Xiên 3: Giá = winRate × 2
+                    const minCount3 = Math.min(c1, c2, c3);
+                    if (minCount3 > 0) {
+                        totalAmount += minCount3 * bet.point * 1000 * (winRate * 2);
+                        totalCount += minCount3;
+                    }
+
+                    // Xiên 2 - 3 tổ hợp (từ remain)
+                    const remain1 = Math.max(0, c1 - minCount3);
+                    const remain2 = Math.max(0, c2 - minCount3);
+                    const remain3 = Math.max(0, c3 - minCount3);
+
+                    if (remain1 > 0 && remain2 > 0) {
+                        const minCount2_12 = Math.min(c1, c2);
+                        totalAmount += minCount2_12 * bet.point * 1000 * winRate;
+                        totalCount += minCount2_12;
+                    }
+                    if (remain1 > 0 && remain3 > 0) {
+                        const minCount2_13 = Math.min(c1, c3);
+                        totalAmount += minCount2_13 * bet.point * 1000 * winRate;
+                        totalCount += minCount2_13;
+                    }
+                    if (remain2 > 0 && remain3 > 0) {
+                        const minCount2_23 = Math.min(c2, c3);
+                        totalAmount += minCount2_23 * bet.point * 1000 * winRate;
+                        totalCount += minCount2_23;
+                    }
+                } else {
+                    // KI (false): Xiên 3 chỉ tính khi c1 === c2 === c3
+                    if (c1 === c2 && c2 === c3 && c1 > 0) {
+                        totalAmount += c1 * bet.point * 1000 * (winRate * 2);
+                        totalCount += c1;
+                    }
+
+                    // Xiên 2: Chỉ tính các cặp có count bằng nhau
+                    if (c1 === c2 && c1 > 0) {
+                        totalAmount += c1 * bet.point * 1000 * winRate;
+                        totalCount += c1;
+                    }
+                    if (c1 === c3 && c1 > 0) {
+                        totalAmount += c1 * bet.point * 1000 * winRate;
+                        totalCount += c1;
+                    }
+                    if (c2 === c3 && c2 > 0) {
+                        totalAmount += c2 * bet.point * 1000 * winRate;
+                        totalCount += c2;
+                    }
                 }
 
-                // Xiên 2 - 3 tổ hợp
-                const remain1 = Math.max(0, c1 - minCount3);
-                const remain2 = Math.max(0, c2 - minCount3);
-                const remain3 = Math.max(0, c3 - minCount3);
-
-                if (remain1 > 0 && remain2 > 0) {
-                    const minCount2_12 = Math.min(c1, c2);
-                    totalAmount += minCount2_12 * bet.point * 1000 * winRate;
-                    totalCount += minCount2_12;
-                }
-                if (remain1 > 0 && remain3 > 0) {
-                    const minCount2_13 = Math.min(c1, c3);
-                    totalAmount += minCount2_13 * bet.point * 1000 * winRate;
-                    totalCount += minCount2_13;
-                }
-                if (remain2 > 0 && remain3 > 0) {
-                    const minCount2_23 = Math.min(c2, c3);
-                    totalAmount += minCount2_23 * bet.point * 1000 * winRate;
-                    totalCount += minCount2_23;
-                }
+                winCount = totalCount;
+                winAmount = totalAmount;
             } else {
-                // KI (false): Xiên 3 chỉ tính khi c1 === c2 === c3
-                if (c1 === c2 && c2 === c3 && c1 > 0) {
-                    totalAmount += c1 * bet.point * 1000 * (winRate * 2);
-                    totalCount += c1;
+                // === 2+ ĐÀI: Tính từng cặp độc lập (giống xiên 4 với 2+ đài) ===
+                const totalCountPerNumber: Record<string, number> = {
+                    [n1]: c1,
+                    [n2]: c2,
+                    [n3]: c3,
+                };
+
+                let totalVong = 0;
+
+                for (let i = 0; i < numbers.length; i++) {
+                    for (let j = i + 1; j < numbers.length; j++) {
+                        const numA = numbers[i];
+                        const numB = numbers[j];
+
+                        const countA = totalCountPerNumber[numA] || 0;
+                        const countB = totalCountPerNumber[numB] || 0;
+
+                        if (useKiRuoi) {
+                            if (countA > 0 && countB > 0) {
+                                totalVong += Math.min(countA, countB);
+                            }
+                        } else {
+                            // KI: chỉ tính khi count bằng nhau
+                            if (countA === countB && countA > 0) {
+                                totalVong += countA;
+                            }
+                        }
+                    }
                 }
 
-                // Xiên 2: Chỉ tính các cặp có count bằng nhau
-                if (c1 === c2 && c1 > 0) {
-                    totalAmount += c1 * bet.point * 1000 * winRate;
-                    totalCount += c1;
-                }
-                if (c1 === c3 && c1 > 0) {
-                    totalAmount += c1 * bet.point * 1000 * winRate;
-                    totalCount += c1;
-                }
-                if (c2 === c3 && c2 > 0) {
-                    totalAmount += c2 * bet.point * 1000 * winRate;
-                    totalCount += c2;
+                if (totalVong > 0) {
+                    winAmount = totalVong * winRate * bet.point * 1000;
+                    winCount = totalVong;
                 }
             }
-
-            winCount = totalCount;
-            winAmount = totalAmount;
         }
         else if (numbers.length === 4) {
             // ===== XIÊN 4 ===== (SỬA: phân biệt 1 đài vs 2+ đài)

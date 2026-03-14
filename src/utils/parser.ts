@@ -9,7 +9,8 @@ import { generatePermutations } from "./permutation";
 const DEFAULT_PRICE = 1000;
 
 interface ParseContext {
-    provinces: LotteryProvince[];
+    provinces: LotteryProvince[];        // Đài xổ hôm nay
+    allProvinces: LotteryProvince[];     // Tất cả đài (dùng để phát hiện đài không xổ hôm nay)
     betTypes: BetType[];
     betSettings: BetSettings;
     region: Region;
@@ -26,7 +27,8 @@ export function parseMessage(
     betTypes: BetType[],
     betSettings: BetSettings | null,
     region: Region = Region.MN,
-    date?: Date | string
+    date?: Date | string,
+    allProvinces?: LotteryProvince[]
 ): ParsedMessage {
     const settings = betSettings || DEFAULT_BET_SETTINGS;
     const dayOfWeek = getDayOfWeek(date);
@@ -48,6 +50,7 @@ export function parseMessage(
 
     const context: ParseContext = {
         provinces,
+        allProvinces: allProvinces || provinces,
         betTypes,
         betSettings: settings,
         region,
@@ -94,6 +97,10 @@ function parseNormalizedMessage(
     // - Đá xiên: Cho phép tiếp tục (sẽ auto-assign đài ưu tiên sau)
     // - Các kiểu khác: Yêu cầu phải có đài
     if (mentionedProvinces.length === 0 && !hasDaXien) {
+        context.errors.push({
+            message: `Không tìm thấy tên đài hợp lệ. Tin nhắn phải bắt đầu bằng tên đài (ví dụ: vl, tg, bt...)`,
+            rawFragment: parts.length > 0 ? parts[0] : undefined,
+        });
         return result;
     }
 
@@ -143,25 +150,35 @@ function parseNormalizedMessage(
         // Kiểm tra loại cược
         const betType = findBetTypeByAlias(context.betTypes, part);
         if (betType) {
+            const betAlias = part; // Lưu alias gốc để dùng cho rawFragment
             i++;
             lastPartType = 'betType';
 
             // Lấy điểm cược - BẮT BUỘC phải có
+            // Hỗ trợ cả số nguyên (5) và thập phân (5.8, 0.5)
             let point: number | null = null;
-            if (i < parts.length && /^\d+$/.test(parts[i])) {
-                // Kiểm tra số thập phân (0 5 = 0.5)
-                if (i + 1 < parts.length && /^\d$/.test(parts[i + 1])) {
-                    if (parts[i] === '0' || parseInt(parts[i]) < 10) {
-                        point = parseFloat(`${parts[i]}.${parts[i + 1]}`);
-                        i += 2;
-                    } else {
-                        point = parseInt(parts[i]);
-                        i++;
-                    }
-                } else {
-                    point = parseInt(parts[i]);
-                    i++;
+            if (i < parts.length && /^\d+(\.\d+)?$/.test(parts[i])) {
+                const pointToken = parts[i];
+                point = parseFloat(pointToken);
+                i++;
+
+                // Nếu point là 1 chữ số và token tiếp theo cũng là 1 chữ số
+                // → báo lỗi, yêu cầu dùng dấu "." cho số thập phân
+                // Ví dụ: "bl 5 8" → lỗi, yêu cầu nhập "bl 5.8"
+                if (/^\d$/.test(pointToken) && i < parts.length && /^\d$/.test(parts[i])) {
+                    context.errors.push({
+                        message: `Không rõ "${pointToken} ${parts[i]}" — vui lòng dùng dấu chấm nếu muốn nhập thập phân: "${pointToken}.${parts[i]}"`,
+                        type: betType.name,
+                        numbers: currentNumbers,
+                        provinces: currentProvinces.map(p => p.name),
+                        rawFragment: `${betAlias} ${pointToken} ${parts[i]}`,
+                    });
+                    i++; // Bỏ qua token gây nhầm lẫn
+                    currentNumbers = [];
+                    lastPartType = 'none';
+                    continue;
                 }
+
                 lastPartType = 'point';
             }
 
@@ -172,6 +189,7 @@ function parseNormalizedMessage(
                     type: betType.name,
                     numbers: currentNumbers,
                     provinces: currentProvinces.map(p => p.name),
+                    rawFragment: [...currentNumbers, betAlias].join(' '),
                 });
                 // Reset currentNumbers để tránh số bị tích lũy cho bet type tiếp theo
                 currentNumbers = [];
@@ -184,6 +202,7 @@ function parseNormalizedMessage(
             const bets = createBets(
                 currentNumbers,
                 betType,
+                betAlias,
                 point,
                 currentProvinces,
                 context
@@ -193,8 +212,32 @@ function parseNormalizedMessage(
             continue;
         }
 
+        // Token không nhận diện được → kiểm tra xem có phải đài không xổ hôm nay không
+        const notTodayProvince = findProvinceByAlias(context.allProvinces, part);
+        if (notTodayProvince) {
+            // Đài tồn tại nhưng không xổ vào ngày đã chọn
+            context.errors.push({
+                message: `Đài "${notTodayProvince.name}" không xổ vào ngày đã chọn`,
+                rawFragment: part,
+            });
+        } else {
+            context.errors.push({
+                message: `Không nhận diện được "${part}". Kiểm tra lại cú pháp (tên đài, số, hoặc kiểu chơi).`,
+                rawFragment: part,
+            });
+        }
         i++;
         lastPartType = 'none';
+    }
+
+    // Kiểm tra số bị bỏ rơi cuối tin nhắn (có số nhưng không có kiểu chơi theo sau)
+    if (currentNumbers.length > 0 && lastPartType === 'number') {
+        context.errors.push({
+            message: `Số "${currentNumbers.join(', ')}" ở cuối tin nhắn chưa có kiểu chơi. Cú pháp: [số] [kiểu chơi] [điểm]`,
+            numbers: currentNumbers,
+            provinces: currentProvinces.map(p => p.name),
+            rawFragment: currentNumbers.join(' '),
+        });
     }
 
     return result;
@@ -206,6 +249,7 @@ function parseNormalizedMessage(
 function createBets(
     numbers: string[],
     betType: BetType,
+    betAlias: string,
     point: number,
     provinces: LotteryProvince[],
     context: ParseContext
@@ -221,7 +265,26 @@ function createBets(
     // Các kiểu chơi khác yêu cầu phải có ít nhất 1 đài
     // ========================================
     if (betTypeName !== 'Đá xiên' && provinceCount === 0) {
-        // Không tạo bet nếu không có đài
+        // Không tạo bet nếu không có đài — thông báo lỗi
+        context.errors.push({
+            message: `Thiếu đài cho kiểu chơi "${betTypeName}". Cú pháp: [đài] [số] [kiểu chơi] [điểm]`,
+            type: betTypeName,
+            numbers: numbers,
+            rawFragment: [...numbers, betAlias].join(' '),
+        });
+        return bets;
+    }
+
+    // ========================================
+    // VALIDATION: Kiểm tra có số cược không
+    // ========================================
+    if (numbers.length === 0) {
+        context.errors.push({
+            message: `Thiếu số cược trước kiểu chơi "${betTypeName}". Cú pháp: [số] [kiểu chơi] [điểm]`,
+            type: betTypeName,
+            provinces: provinceNames,
+            rawFragment: `${betAlias} ${point}`,
+        });
         return bets;
     }
 
@@ -239,29 +302,51 @@ function createBets(
                 type: 'Đá xiên',
                 numbers: numbers,
                 provinces: provinceNames,
+                rawFragment: [...numbers, betAlias].join(' '),
             });
             return bets; // Không tạo bet
         }
 
-        // Validate số đài - Nếu < 2 đài, tự động lấy 2 đài ưu tiên
+        // Validate số đài - Nếu < 2 đài, tự động bổ sung từ đài ưu tiên / đài hôm nay
         let finalProvinces = provinces;
         let finalProvinceNames = provinceNames;
 
         if (provinceCount < 2) {
-            // Lấy 2 đài ưu tiên đầu tiên
-            finalProvinces = context.priorityProvinces.slice(0, 2);
-            finalProvinceNames = finalProvinces.map(p => p.name);
+            // Giữ lại đài user đã chọn (nếu có), bổ sung thêm đài
+            const selectedProvinces: LotteryProvince[] = [...provinces];
 
-            // Nếu vẫn không đủ 2 đài ưu tiên, báo lỗi
-            if (finalProvinces.length < 2) {
+            // Bổ sung từ danh sách đài ưu tiên trước
+            for (const p of context.priorityProvinces) {
+                if (selectedProvinces.length >= 2) break;
+                if (!selectedProvinces.find(sp => sp.id === p.id)) {
+                    selectedProvinces.push(p);
+                }
+            }
+
+            // Nếu vẫn chưa đủ, bổ sung từ tất cả đài hôm nay
+            if (selectedProvinces.length < 2) {
+                for (const p of context.provinces) {
+                    if (selectedProvinces.length >= 2) break;
+                    if (!selectedProvinces.find(sp => sp.id === p.id)) {
+                        selectedProvinces.push(p);
+                    }
+                }
+            }
+
+            // Nếu vẫn không đủ 2 đài, báo lỗi
+            if (selectedProvinces.length < 2) {
                 context.errors.push({
-                    message: `Đá xiên yêu cầu ít nhất 2 đài nhưng không tìm thấy đủ đài ưu tiên`,
+                    message: `Đá xiên yêu cầu ít nhất 2 đài nhưng không tìm thấy đủ đài`,
                     type: 'Đá xiên',
                     numbers: numbers,
                     provinces: provinceNames,
+                    rawFragment: [...numbers, betAlias].join(' '),
                 });
                 return bets; // Không tạo bet
             }
+
+            finalProvinces = selectedProvinces;
+            finalProvinceNames = selectedProvinces.map(p => p.name);
         }
 
         // Validate số lượng số
@@ -271,6 +356,7 @@ function createBets(
                 type: 'Đá xiên',
                 numbers: numbers,
                 provinces: provinceNames,
+                rawFragment: [...numbers, betAlias].join(' '),
             });
             return bets;
         }
@@ -281,11 +367,24 @@ function createBets(
                 type: 'Đá xiên',
                 numbers: numbers,
                 provinces: provinceNames,
+                rawFragment: [...numbers, betAlias].join(' '),
             });
             return bets;
         }
 
         // Validation passed - tạo bet với đài đã được xác định (có thể là auto-assigned)
+        // Validate tất cả các số phải là 2 chữ số
+        const invalidDxNums = numbers.filter(n => n.length !== 2);
+        if (invalidDxNums.length > 0) {
+            context.errors.push({
+                message: `Đá xiên yêu cầu số có 2 chữ số. Số không hợp lệ: ${invalidDxNums.join(', ')}`,
+                type: 'Đá xiên',
+                numbers: invalidDxNums,
+                provinces: finalProvinceNames,
+                rawFragment: [...numbers, betAlias].join(' '),
+            });
+            return bets;
+        }
         const bet = createSingleBet(numbers, betTypeName, point, finalProvinceNames, context);
         bets.push(bet);
         return bets;
@@ -302,6 +401,20 @@ function createBets(
                 type: betTypeName,
                 numbers: numbers,
                 provinces: provinceNames,
+                rawFragment: [...numbers, betAlias].join(' '),
+            });
+            return bets;
+        }
+
+        // Validate tất cả các số phải là 2 chữ số
+        const invalidDtNums = numbers.filter(n => n.length !== 2);
+        if (invalidDtNums.length > 0) {
+            context.errors.push({
+                message: `Đá thẳng yêu cầu số có 2 chữ số. Số không hợp lệ: ${invalidDtNums.join(', ')}`,
+                type: betTypeName,
+                numbers: invalidDtNums,
+                provinces: provinceNames,
+                rawFragment: [...numbers, betAlias].join(' '),
             });
             return bets;
         }
@@ -318,6 +431,16 @@ function createBets(
     if (betTypeName === 'Đầu đuôi') {
         // Tách thành 2 cược: Đầu và Đuôi
         for (const num of numbers) {
+            if (num.length !== 2) {
+                context.errors.push({
+                    message: `Đầu đuôi yêu cầu số có 2 chữ số (số "${num}" có ${num.length} chữ số)`,
+                    type: 'Đầu đuôi',
+                    numbers: [num],
+                    provinces: provinceNames,
+                    rawFragment: num,
+                });
+                continue;
+            }
             const betDau = createSingleBet(num, 'Đầu', point, provinceNames, context);
             const betDuoi = createSingleBet(num, 'Đuôi', point, provinceNames, context);
             bets.push(betDau, betDuoi);
@@ -338,6 +461,7 @@ function createBets(
                     type: 'Xỉu chủ',
                     numbers: [num],
                     provinces: provinceNames,
+                    rawFragment: num,
                 });
             }
         }
@@ -360,6 +484,7 @@ function createBets(
                     type: 'Xỉu chủ đảo',
                     numbers: [num],
                     provinces: provinceNames,
+                    rawFragment: num,
                 });
             }
         }
@@ -375,6 +500,14 @@ function createBets(
                     const bet = createSingleBet(perm, 'Xỉu chủ đảo đầu', point, provinceNames, context);
                     bets.push(bet);
                 }
+            } else {
+                context.errors.push({
+                    message: `Xỉu chủ đảo đầu yêu cầu số có 3 chữ số (số "${num}" có ${num.length} chữ số)`,
+                    type: 'Xỉu chủ đảo đầu',
+                    numbers: [num],
+                    provinces: provinceNames,
+                    rawFragment: num,
+                });
             }
         }
         return bets;
@@ -389,6 +522,14 @@ function createBets(
                     const bet = createSingleBet(perm, 'Xỉu chủ đảo đuôi', point, provinceNames, context);
                     bets.push(bet);
                 }
+            } else {
+                context.errors.push({
+                    message: `Xỉu chủ đảo đuôi yêu cầu số có 3 chữ số (số "${num}" có ${num.length} chữ số)`,
+                    type: 'Xỉu chủ đảo đuôi',
+                    numbers: [num],
+                    provinces: provinceNames,
+                    rawFragment: num,
+                });
             }
         }
         return bets;
@@ -409,6 +550,7 @@ function createBets(
                     type: 'Bao đảo',
                     numbers: [num],
                     provinces: provinceNames,
+                    rawFragment: num,
                 });
             }
         }
@@ -417,6 +559,28 @@ function createBets(
 
     // Các loại cược thông thường: tạo 1 cược cho mỗi số
     for (const num of numbers) {
+        // Validate số chữ số cho Đầu/Đuôi (2 chữ số)
+        if ((betTypeName === 'Đầu' || betTypeName === 'Đuôi') && num.length !== 2) {
+            context.errors.push({
+                message: `${betTypeName} yêu cầu số có 2 chữ số (số "${num}" có ${num.length} chữ số)`,
+                type: betTypeName,
+                numbers: [num],
+                provinces: provinceNames,
+                rawFragment: num,
+            });
+            continue;
+        }
+        // Validate số chữ số cho Bao lô (2-4 chữ số)
+        if (betTypeName === 'Bao lô' && (num.length < 2 || num.length > 4)) {
+            context.errors.push({
+                message: `Bao lô yêu cầu số có 2-4 chữ số (số "${num}" có ${num.length} chữ số)`,
+                type: betTypeName,
+                numbers: [num],
+                provinces: provinceNames,
+                rawFragment: num,
+            });
+            continue;
+        }
         const bet = createSingleBet(num, betTypeName, point, provinceNames, context);
         bets.push(bet);
     }

@@ -107,6 +107,7 @@ export interface ParseError {
     type?: string;               // Loại cược gây lỗi
     numbers?: string[];          // Số liên quan
     provinces?: string[];        // Đài liên quan
+    rawFragment?: string;        // Đoạn text gốc gây lỗi (dùng để highlight trên input)
 }
 
 // Kết quả phân tích tin nhắn

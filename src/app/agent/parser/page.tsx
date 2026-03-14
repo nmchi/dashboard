@@ -89,23 +89,10 @@ export default function ParserPage() {
             const data: ParseMessageResponse = await res.json();
             setResult(data);
 
-            // Hiển thị lỗi qua toast - gộp tất cả lỗi thành 1 toast
-            if (!data.success && data.error) {
+            // Chỉ dùng toast cho lỗi nghiêm trọng (không parse được gì)
+            // Lỗi validation hiển thị inline (tô đỏ + danh sách dưới textarea)
+            if (!data.success && data.error && (!data.parsedResult?.errors || data.parsedResult.errors.length === 0)) {
                 toast.error(data.error);
-            } else if (data.parsedResult?.errors && data.parsedResult.errors.length > 0) {
-                // Gộp tất cả lỗi validation thành 1 message
-                const errorMessages = data.parsedResult.errors.map((err) =>
-                    `${err.type}: ${err.message}${err.numbers && err.numbers.length > 0 ? ` (số: ${err.numbers.join(', ')})` : ''}`
-                );
-                toast.error(
-                    <div>
-                        <div className="font-semibold mb-1">Lỗi cú pháp ({data.parsedResult.errors.length})</div>
-                        {errorMessages.map((msg, idx) => (
-                            <div key={idx} className="text-sm">• {msg}</div>
-                        ))}
-                    </div>,
-                    { duration: 5000 }
-                );
             }
 
             // Tính toán lại totalsByType với xac
@@ -399,7 +386,7 @@ export default function ParserPage() {
                         {loading ? 'Đang xử lý...' : '🔍 Phân tích'}
                     </button>
 
-                    {result?.success && !hasValidationErrors && result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
+                    {result?.success && result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
                         <button
                             onClick={handleSave}
                             disabled={saving}
@@ -415,11 +402,11 @@ export default function ParserPage() {
             </div>
 
             {/* Result Section - chỉ hiển thị khi thành công */}
-            {result && result.success && !hasValidationErrors && result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
+            {result && result.success && result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
                 <div className="bg-white rounded-lg border shadow-sm p-4 sm:p-6">
 
                     {/* Kết quả parse thành công (không có lỗi) */}
-                    {result.success && !hasValidationErrors && result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
+                    {result.success && result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
                         <>
                             {/* Normalized Message */}
                             <div className="mb-4 p-2.5 sm:p-3 bg-slate-100 rounded-lg">

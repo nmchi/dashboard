@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { ParseError } from "@/types/messages";
 
 interface ErrorHighlightTextareaProps {
@@ -18,6 +18,57 @@ interface HighlightRange {
     error: ParseError;
 }
 
+/**
+ * Chuẩn hóa text để so sánh (lowercase, bỏ dấu tiếng Việt)
+ */
+function normalizeForSearch(text: string): string {
+    return text
+        .toLowerCase()
+        .replace(/đ/g, 'd')
+        .replace(/[àáảãạăằắẳẵặâầấẩẫậ]/g, 'a')
+        .replace(/[èéẻẽẹêềếểễệ]/g, 'e')
+        .replace(/[ìíỉĩị]/g, 'i')
+        .replace(/[òóỏõọôồốổỗộơờớởỡợ]/g, 'o')
+        .replace(/[ùúủũụưừứửữự]/g, 'u')
+        .replace(/[ỳýỷỹỵ]/g, 'y');
+}
+
+/**
+ * Tìm vị trí của fragment trong raw text (tìm kiếm linh hoạt)
+ * - Case-insensitive
+ * - Bỏ dấu tiếng Việt
+ * - Linh hoạt khoảng trắng (1 space trong fragment = 1+ spaces/separators trong raw)
+ */
+function findFragmentPosition(
+    rawText: string,
+    fragment: string,
+    searchAfter: number = 0
+): { start: number; end: number } | null {
+    if (!fragment || !rawText) return null;
+
+    const normalizedRaw = normalizeForSearch(rawText);
+    const normalizedFragment = normalizeForSearch(fragment);
+
+    // Tạo regex: thay thế khoảng trắng bằng \s+ cho linh hoạt
+    const parts = normalizedFragment.split(/\s+/).map(p =>
+        p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // Escape regex chars
+    );
+    const pattern = new RegExp(parts.join('\\s+'), 'g');
+
+    // Tìm match sau vị trí searchAfter
+    pattern.lastIndex = searchAfter;
+    const match = pattern.exec(normalizedRaw);
+
+    if (match) {
+        return {
+            start: match.index,
+            end: match.index + match[0].length,
+        };
+    }
+
+    return null;
+}
+
 export default function ErrorHighlightTextarea({
     value,
     onChange,
@@ -29,7 +80,7 @@ export default function ErrorHighlightTextarea({
     const editorRef = useRef<HTMLDivElement>(null);
     const [highlightRanges, setHighlightRanges] = useState<HighlightRange[]>([]);
 
-    // Tìm vị trí của lỗi trong text
+    // Tìm vị trí lỗi trong text dựa trên rawFragment
     useEffect(() => {
         if (!value || errors.length === 0) {
             setHighlightRanges([]);
@@ -37,115 +88,87 @@ export default function ErrorHighlightTextarea({
         }
 
         const ranges: HighlightRange[] = [];
+        const usedPositions = new Set<string>(); // Tránh highlight trùng vị trí
 
         for (const error of errors) {
-            // Build search pattern: numbers followed by type alias
-            const typeAliases: Record<string, string[]> = {
-                'Đá xiên': ['dx', 'dax'],
-                'Đá thẳng': ['dat', 'da'],
-                'Đầu': ['dd', 'd'],
-                'Đuôi': ['dt'],
-                'Đầu đuôi': ['dd'],
-                'Bao lô': ['bl', 'b'],
-                'Xỉu chủ': ['xc'],
-            };
+            const fragment = error.rawFragment;
+            if (!fragment) continue;
 
-            const aliases = error.type ? (typeAliases[error.type] || []) : [];
-            const numbers = error.numbers || [];
-
-            if (numbers.length === 0 && aliases.length === 0) continue;
-
-            const lines = value.split('\n');
+            // Tìm vị trí fragment trong raw text
+            let searchFrom = 0;
             let found = false;
 
-            for (let lineIdx = 0; lineIdx < lines.length && !found; lineIdx++) {
-                const line = lines[lineIdx];
-                const lineLower = line.toLowerCase();
-                const lineStart = lines.slice(0, lineIdx).join('\n').length + (lineIdx > 0 ? 1 : 0);
+            while (!found) {
+                const pos = findFragmentPosition(value, fragment, searchFrom);
+                if (!pos) break;
 
-                // Try to find pattern: any number from error.numbers followed by any alias
-                for (const num of numbers) {
-                    for (const alias of aliases) {
-                        // Look for pattern: number + optional space + alias
-                        // Example: "22b", "22 b", "22 bl"
-                        const patterns = [
-                            `${num}${alias}`,      // 22b
-                            `${num} ${alias}`,     // 22 b
-                        ];
-
-                        for (const pattern of patterns) {
-                            const pos = lineLower.indexOf(pattern.toLowerCase());
-                            if (pos !== -1) {
-                                const start = lineStart + pos;
-                                const end = start + pattern.length;
-                                ranges.push({ start, end, error });
-                                found = true;
-                                break;
-                            }
-                        }
-                        if (found) break;
-                    }
-                    if (found) break;
-                }
-
-                // If no pattern found, fallback to finding just the numbers
-                if (!found && numbers.length > 0) {
-                    for (const num of numbers) {
-                        const pos = lineLower.indexOf(num.toLowerCase());
-                        if (pos !== -1) {
-                            const start = lineStart + pos;
-                            const end = start + num.length;
-                            ranges.push({ start, end, error });
-                            found = true;
-                            break;
-                        }
-                    }
+                const posKey = `${pos.start}-${pos.end}`;
+                if (!usedPositions.has(posKey)) {
+                    usedPositions.add(posKey);
+                    ranges.push({ start: pos.start, end: pos.end, error });
+                    found = true;
+                } else {
+                    // Vị trí đã dùng, tìm tiếp
+                    searchFrom = pos.start + 1;
                 }
             }
         }
 
-        setHighlightRanges(ranges);
+        // Sắp xếp theo vị trí
+        ranges.sort((a, b) => a.start - b.start);
+
+        // Loại bỏ overlap
+        const filtered: HighlightRange[] = [];
+        for (const range of ranges) {
+            const last = filtered[filtered.length - 1];
+            if (!last || range.start >= last.end) {
+                filtered.push(range);
+            }
+        }
+
+        setHighlightRanges(filtered);
     }, [value, errors]);
 
-    // Update editor content when value changes externally
-    useEffect(() => {
-        if (editorRef.current && document.activeElement !== editorRef.current) {
-            editorRef.current.innerHTML = renderHighlightedHTML();
-        }
-    }, [value, highlightRanges]);
-
-    const renderHighlightedHTML = () => {
+    // Render HTML với highlight
+    const renderHighlightedHTML = useCallback(() => {
         if (!value) return '';
         if (highlightRanges.length === 0) {
-            return value.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;');
+            return escapeAndFormat(value);
         }
 
         const parts: string[] = [];
         let lastIndex = 0;
 
-        const sortedRanges = [...highlightRanges].sort((a, b) => a.start - b.start);
-
-        for (const range of sortedRanges) {
+        for (const range of highlightRanges) {
+            // Text trước highlight
             if (range.start > lastIndex) {
-                const text = value.substring(lastIndex, range.start);
-                parts.push(text.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;'));
+                parts.push(escapeAndFormat(value.substring(lastIndex, range.start)));
             }
 
+            // Text được highlight (tô đỏ)
             const highlightedText = value.substring(range.start, range.end);
+            const tooltip = range.error.message.replace(/"/g, '&quot;');
             parts.push(
-                `<mark style="background-color: rgba(254, 226, 226, 0.6); border-bottom: 2px solid rgba(252, 165, 165, 0.8); border-radius: 2px; padding: 1px 2px;">${highlightedText.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}</mark>`
+                `<mark style="background-color: rgba(254, 202, 202, 0.7); border-bottom: 2px solid #ef4444; border-radius: 2px; padding: 1px 2px; color: #dc2626;" title="${tooltip}">${escapeAndFormat(highlightedText)}</mark>`
             );
 
             lastIndex = range.end;
         }
 
+        // Text sau highlight cuối
         if (lastIndex < value.length) {
-            const text = value.substring(lastIndex);
-            parts.push(text.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;'));
+            parts.push(escapeAndFormat(value.substring(lastIndex)));
         }
 
         return parts.join('');
-    };
+    }, [value, highlightRanges]);
+
+    // Update editor khi value hoặc highlights thay đổi từ bên ngoài
+    useEffect(() => {
+        if (editorRef.current && document.activeElement !== editorRef.current) {
+            editorRef.current.innerHTML = renderHighlightedHTML();
+        }
+    }, [value, highlightRanges, renderHighlightedHTML]);
 
     const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
         const text = e.currentTarget.innerText;
@@ -160,14 +183,12 @@ export default function ErrorHighlightTextarea({
 
     const handleFocus = () => {
         if (editorRef.current) {
-            // When focusing, show plain text for editing
             editorRef.current.innerText = value;
         }
     };
 
     const handleBlur = () => {
         if (editorRef.current) {
-            // When blurring, restore highlighted HTML
             editorRef.current.innerHTML = renderHighlightedHTML();
         }
     };
@@ -208,6 +229,33 @@ export default function ErrorHighlightTextarea({
                     {placeholder}
                 </div>
             )}
+
+            {/* Hiển thị danh sách lỗi bên dưới */}
+            {errors.length > 0 && (
+                <div className="mt-2 space-y-1">
+                    {errors.map((error, idx) => (
+                        <div
+                            key={idx}
+                            className="flex items-start gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2.5 py-1.5"
+                        >
+                            <span className="shrink-0 mt-0.5">⚠️</span>
+                            <span>{error.message}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
+}
+
+/**
+ * Escape HTML và format cho hiển thị
+ */
+function escapeAndFormat(text: string): string {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>')
+        .replace(/ /g, '&nbsp;');
 }
