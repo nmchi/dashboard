@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
 import { sidebarLinks } from "@/app/config/nav";
-import { useMemo } from "react";
 
 interface SidebarProps {
     userRole: string;
@@ -22,7 +22,7 @@ export function Sidebar({ userRole }: SidebarProps) {
         [userRole]
     );
 
-    const handleLogout = async () => {
+    const handleLogout = useCallback(async () => {
         await signOut({
             fetchOptions: {
                 onSuccess: () => {
@@ -31,7 +31,7 @@ export function Sidebar({ userRole }: SidebarProps) {
                 },
             },
         });
-    };
+    }, [router]);
 
     return (
         <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 h-screen flex-col sticky top-0">

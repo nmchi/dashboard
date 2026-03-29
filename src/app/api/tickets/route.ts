@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/prisma";
 import { Region, TicketStatus, Prisma } from "@prisma/client";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import { parseMessage } from "@/utils/parser";
 import {
     getLotteryResults,
@@ -20,6 +22,11 @@ import { getProvincesByDay } from "@/utils/province";
 
 export async function GET(req: NextRequest) {
     try {
+        const session = await auth.api.getSession({ headers: await headers() });
+        if (!session?.user) {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        }
+        
         const { searchParams } = new URL(req.url);
         const userId = searchParams.get('userId');
         const parentId = searchParams.get('parentId');
@@ -97,8 +104,7 @@ export async function GET(req: NextRequest) {
             },
         });
 
-    } catch (error) {
-        console.error('Get tickets error:', error);
+    } catch {
         return NextResponse.json({
             success: false,
             error: 'Đã xảy ra lỗi',
@@ -108,6 +114,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
+        const session = await auth.api.getSession({ headers: await headers() });
+        if (!session?.user) {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        }
+
         const body = await req.json();
         const { message, userId, region = Region.MN, drawDate } = body;
 
@@ -213,8 +224,7 @@ export async function POST(req: NextRequest) {
             data: ticket,
         });
 
-    } catch (error) {
-        console.error('Save ticket error:', error);
+    } catch {
         return NextResponse.json({
             success: false,
             error: 'Lỗi lưu ticket',
@@ -229,6 +239,11 @@ export async function POST(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
     try {
+        const session = await auth.api.getSession({ headers: await headers() });
+        if (!session?.user) {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { searchParams } = new URL(req.url);
         const ticketId = searchParams.get('ticketId');
         const userId = searchParams.get('userId'); // Agent ID
@@ -282,8 +297,7 @@ export async function DELETE(req: NextRequest) {
             message: 'Đã xóa ticket thành công',
         });
 
-    } catch (error) {
-        console.error('Delete ticket error:', error);
+    } catch {
         return NextResponse.json({
             success: false,
             error: 'Lỗi xóa ticket',

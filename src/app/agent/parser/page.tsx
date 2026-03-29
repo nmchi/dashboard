@@ -6,6 +6,16 @@ import { Region } from "@prisma/client";
 import { ParseMessageResponse, ParseError } from "@/types/messages";
 import ErrorHighlightTextarea from "@/components/error-highlight-textarea";
 import { toast } from "sonner";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Player {
     id: string;
@@ -37,7 +47,10 @@ export default function ParserPage() {
     const [selectedPlayerId, setSelectedPlayerId] = useState("");
     const [message, setMessage] = useState("");
     const [region, setRegion] = useState<Region>(Region.MN);
-    const [drawDate, setDrawDate] = useState(new Date().toISOString().split('T')[0]);
+    const [drawDate, setDrawDate] = useState(() =>
+        new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
+    );
+    const [showSaveWithErrors, setShowSaveWithErrors] = useState(false);
 
     const [activeProvinces, setActiveProvinces] = useState<ActiveProvince[]>([]);
     const [loadingProvinces, setLoadingProvinces] = useState(false);
@@ -59,8 +72,8 @@ export default function ParserPage() {
                     setPlayers(data.data);
                     if (data.data.length > 0) setSelectedPlayerId(data.data[0].id);
                 }
-            } catch (error) {
-                console.error('Fetch players error:', error);
+            } catch {
+                // silent
             } finally {
                 setLoadingPlayers(false);
             }
@@ -74,8 +87,8 @@ export default function ParserPage() {
             const res = await fetch(`/api/provinces/active?date=${drawDate}&region=${region}`);
             const data = await res.json();
             if (data.success) setActiveProvinces(data.data);
-        } catch (error) {
-            console.error('Fetch provinces error:', error);
+        } catch {
+            // silent
         } finally {
             setLoadingProvinces(false);
         }
@@ -112,10 +125,11 @@ export default function ParserPage() {
         }
     };
 
-    const handleSave = async () => {
+    const handleSave = async (skipConfirm = false) => {
         if (!result?.success || !selectedPlayerId) return;
-        if (result.parsedResult?.errors && result.parsedResult.errors.length > 0) {
-            if (!window.confirm(`Có ${result.parsedResult.errors.length} lỗi validation. Bạn vẫn muốn lưu các cược hợp lệ?`)) return;
+        if (!skipConfirm && result.parsedResult?.errors && result.parsedResult.errors.length > 0) {
+            setShowSaveWithErrors(true);
+            return;
         }
         setSaving(true);
         try {
@@ -126,13 +140,13 @@ export default function ParserPage() {
             });
             const data = await res.json();
             if (data.success) {
-                alert('Đã lưu tin nhắn thành công!');
+                toast.success('Đã lưu tin nhắn thành công!');
                 setMessage(""); setResult(null); setTotalsByType(null);
             } else {
-                alert('Lỗi: ' + data.error);
+                toast.error('Lỗi: ' + data.error);
             }
         } catch {
-            alert('Lỗi kết nối server');
+            toast.error('Lỗi kết nối server');
         } finally {
             setSaving(false);
         }
@@ -212,6 +226,24 @@ export default function ParserPage() {
     };
 
     const selectedPlayer = players.find(p => p.id === selectedPlayerId);
+
+    const groupedBets = useMemo(() => {
+        const bets = result?.parsedResult?.bets;
+        if (!bets) return null;
+        const map = new Map<string, { provinces: string; type: string; numbers: string[]; totalPoint: number }>();
+        for (const bet of bets) {
+            const key = `${bet.provinces.join(',')}_${bet.type}`;
+            const nums = Array.isArray(bet.numbers) ? bet.numbers : [bet.numbers];
+            if (map.has(key)) {
+                const e = map.get(key)!;
+                e.numbers.push(...nums); e.totalPoint += bet.point;
+            } else {
+                map.set(key, { provinces: bet.provinces.join(', '), type: bet.type, numbers: [...nums], totalPoint: bet.point });
+            }
+        }
+        return Array.from(map.values());
+    }, [result?.parsedResult?.bets]);
+
     const categoryLabels: Record<string, string> = {
         "2c-dd": "2c-dd", "2c-b": "2c-b", "3c": "3c", "4c": "4c", "dat": "dat", "dax": "dax",
     };
@@ -226,24 +258,29 @@ export default function ParserPage() {
 
     const regionLabel: Record<Region, string> = { MN: 'Miền Nam', MT: 'Miền Trung', MB: 'Miền Bắc' };
 
-    const groupedBets = useMemo(() => {
-        const map = new Map<string, { provinces: string; type: string; numbers: string[]; totalPoint: number }>();
-        for (const bet of result?.parsedResult?.bets || []) {
-            const key = `${bet.provinces.join(',')}_${bet.type}`;
-            const nums = Array.isArray(bet.numbers) ? bet.numbers : [bet.numbers];
-            if (map.has(key)) {
-                const e = map.get(key)!;
-                e.numbers.push(...nums);
-                e.totalPoint += bet.point;
-            } else {
-                map.set(key, { provinces: bet.provinces.join(', '), type: bet.type, numbers: [...nums], totalPoint: bet.point });
-            }
-        }
-        return Array.from(map.values());
-    }, [result?.parsedResult?.bets]);
-
     return (
         <div className="space-y-4 sm:space-y-6">
+            {/* Save with errors confirm dialog */}
+            <AlertDialog open={showSaveWithErrors} onOpenChange={setShowSaveWithErrors}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Có lỗi validation</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Có {result?.parsedResult?.errors?.length} lỗi validation. Bạn vẫn muốn lưu các cược hợp lệ?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Hủy</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => { setShowSaveWithErrors(false); handleSave(true); }}
+                            className="bg-orange-500 hover:bg-orange-600"
+                        >
+                            Lưu
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             <div>
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Máy Quét Tin</h1>
                 <p className="text-slate-500 text-sm">Nhập tin nhắn cược cho khách hàng</p>
@@ -382,7 +419,7 @@ export default function ParserPage() {
 
                     {result?.success && result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
                         <button
-                            onClick={handleSave}
+                            onClick={() => handleSave()}
                             disabled={saving}
                             className={`w-full sm:w-auto px-4 sm:px-6 py-2.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base ${hasValidationErrors ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-green-600 hover:bg-green-700 text-white'
                                 }`}
@@ -527,7 +564,7 @@ export default function ParserPage() {
                     </h3>
 
                     <div className="sm:hidden space-y-2">
-                        {groupedBets.map((group, idx) => (
+                        {(groupedBets || []).map((group, idx) => (
                             <div key={idx} className="p-3 bg-slate-50 rounded-lg border text-sm">
                                 <div className="flex items-start justify-between mb-1">
                                     <span className="font-medium text-slate-700">{group.provinces}</span>
@@ -550,7 +587,7 @@ export default function ParserPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                 {groupedBets.map((group, idx) => (
+                                {(groupedBets || []).map((group, idx) => (
                                     <tr key={idx} className="border-t hover:bg-slate-50">
                                         <td className="px-3 py-2">{group.provinces}</td>
                                         <td className="px-3 py-2 font-mono">{group.numbers.join(' ')}</td>

@@ -5,6 +5,8 @@ import {
     processPendingTickets, 
     processUserPendingTickets 
 } from "@/utils/ticket-processor";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 /**
  * POST /api/tickets/process
@@ -21,6 +23,11 @@ import {
  */
 export async function POST(request: NextRequest) {
     try {
+        const session = await auth.api.getSession({ headers: await headers() });
+        if (!session?.user) {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        }
+
         const body = await request.json().catch(() => ({}));
         const { ticketId, userId, date, region } = body;
 
@@ -51,7 +58,6 @@ export async function POST(request: NextRequest) {
 
         // Xử lý 1 ticket cụ thể
         if (ticketId) {
-            console.log(`Processing single ticket: ${ticketId}`);
             const result = await processTicket(ticketId);
             
             return NextResponse.json({
@@ -63,7 +69,6 @@ export async function POST(request: NextRequest) {
 
         // Xử lý tickets của 1 user
         if (userId) {
-            console.log(`Processing tickets for user: ${userId}`);
             const result = await processUserPendingTickets(userId, parsedDate);
             
             return NextResponse.json({
@@ -76,7 +81,6 @@ export async function POST(request: NextRequest) {
         }
 
         // Xử lý tất cả pending tickets
-        console.log(`Processing all pending tickets${parsedDate ? ` for ${date}` : ''}${parsedRegion ? ` in ${parsedRegion}` : ''}`);
         const result = await processPendingTickets(parsedDate, parsedRegion);
 
         return NextResponse.json({
@@ -88,7 +92,6 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error) {
-        console.error("Process tickets error:", error);
         return NextResponse.json(
             { success: false, error: String(error) },
             { status: 500 }
@@ -106,6 +109,11 @@ export async function POST(request: NextRequest) {
  * - region: "MN" | "MT" | "MB" - Lọc theo miền
  */
 export async function GET(request: NextRequest) {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) {
+        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    
     const searchParams = request.nextUrl.searchParams;
     
     const body: Record<string, string> = {};

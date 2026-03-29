@@ -6,6 +6,17 @@ import { TicketStatus, Region } from "@prisma/client";
 import Link from "next/link";
 import { RefreshCw, Loader2, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { ReportDialog } from "@/components/agent/tickets/report-dialog";
+import { toast } from "sonner";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Player {
     id: string;
@@ -63,6 +74,7 @@ export default function TicketListPage() {
     const [statusFilter, setStatusFilter] = useState<TicketStatus | ''>('');
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     
     const [dateFilter, setDateFilter] = useState<string>(() => {
         return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
@@ -79,8 +91,8 @@ export default function TicketListPage() {
                 if (data.success) {
                     setPlayers(data.data);
                 }
-            } catch (error) {
-                console.error('Fetch players error:', error);
+            } catch {
+                // silent
             }
         };
         
@@ -120,8 +132,8 @@ export default function TicketListPage() {
                 setTickets(data.data);
                 setPagination(data.pagination);
             }
-        } catch (error) {
-            console.error('Fetch tickets error:', error);
+        } catch {
+            // silent
         } finally {
             setLoading(false);
         }
@@ -131,29 +143,31 @@ export default function TicketListPage() {
         fetchTickets();
     }, [fetchTickets]);
 
-    const handleDeleteTicket = async (ticketId: string) => {
-        if (!session?.user?.id) return;
-        
-        const confirmed = window.confirm('Bạn có chắc muốn xóa tin nhắn này?');
-        if (!confirmed) return;
-        
+    const handleDeleteTicket = (ticketId: string) => {
+        setDeleteConfirmId(ticketId);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!session?.user?.id || !deleteConfirmId) return;
+
+        const ticketId = deleteConfirmId;
+        setDeleteConfirmId(null);
         setDeletingId(ticketId);
-        
+
         try {
             const res = await fetch(`/api/tickets?ticketId=${ticketId}&userId=${session.user.id}`, {
                 method: 'DELETE',
             });
-            
+
             const data = await res.json();
-            
+
             if (data.success) {
                 fetchTickets();
             } else {
-                alert(data.error || 'Lỗi xóa ticket');
+                toast.error(data.error || 'Lỗi xóa ticket');
             }
-        } catch (error) {
-            console.error('Delete ticket error:', error);
-            alert('Lỗi kết nối');
+        } catch {
+            toast.error('Lỗi kết nối');
         } finally {
             setDeletingId(null);
         }
@@ -166,11 +180,9 @@ export default function TicketListPage() {
         
         try {
             const playerIds = players.map(p => p.id);
-            let totalProcessed = 0;
-            let totalSuccess = 0;
-            
+
             const results = await Promise.all(
-                playerIds.map((playerId) =>
+                playerIds.map(playerId =>
                     fetch('/api/tickets/process', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -179,23 +191,25 @@ export default function TicketListPage() {
                 )
             );
 
+            let totalProcessed = 0;
+            let totalSuccess = 0;
+            
             for (const data of results) {
                 if (data.success && data.data) {
                     totalProcessed += data.data.processed || 0;
                     totalSuccess += data.data.success || 0;
                 }
             }
-            
+
             if (totalProcessed > 0) {
-                alert(`Đã dò số: ${totalSuccess}/${totalProcessed} tin nhắn thành công`);
+                toast.success(`Đã dò số: ${totalSuccess}/${totalProcessed} tin nhắn thành công`);
                 fetchTickets();
             } else {
-                alert('Không có tin nhắn nào cần dò số');
+                toast.info('Không có tin nhắn nào cần dò số');
             }
             
-        } catch (error) {
-            console.error('Process tickets error:', error);
-            alert('Lỗi khi dò số');
+        } catch {
+            toast.error('Lỗi khi dò số');
         } finally {
             setProcessing(false);
         }
@@ -213,18 +227,17 @@ export default function TicketListPage() {
             
             if (data.success) {
                 if (data.error?.includes('Chưa có kết quả')) {
-                    alert('Chưa có kết quả xổ số cho ngày này');
+                    toast.info('Chưa có kết quả xổ số cho ngày này');
                 } else {
-                    alert('Đã dò số thành công!');
+                    toast.success('Đã dò số thành công!');
                     fetchTickets();
                 }
             } else {
-                alert(data.error || 'Lỗi dò số');
+                toast.error(data.error || 'Lỗi dò số');
             }
             
-        } catch (error) {
-            console.error('Process single ticket error:', error);
-            alert('Lỗi kết nối');
+        } catch {
+            toast.error('Lỗi kết nối');
         }
     };
 
@@ -272,6 +285,27 @@ export default function TicketListPage() {
 
     return (
         <div className="space-y-4 w-full overflow-hidden">
+            {/* Delete Confirm Dialog */}
+            <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Xóa tin nhắn</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Bạn có chắc muốn xóa tin nhắn này? Hành động này không thể hoàn tác.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Hủy</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleConfirmDelete}
+                            className="bg-red-600 hover:bg-red-700"
+                        >
+                            Xóa
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             {/* Header */}
             <div>
                 <div className="flex items-center justify-between mb-3">
@@ -406,7 +440,7 @@ export default function TicketListPage() {
                                                 {getStatusBadge(ticket.status)}
                                                 {getRegionBadge(ticket.region)}
                                                 {ticket.user && (
-                                                    <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-xs truncate max-w-[60px]">
+                                                    <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-xs truncate max-w-[80px]">
                                                         {ticket.user.name || ticket.user.username}
                                                     </span>
                                                 )}
@@ -422,7 +456,7 @@ export default function TicketListPage() {
                                                             e.stopPropagation();
                                                             handleProcessSingleTicket(ticket.id);
                                                         }}
-                                                        className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs"
+                                                        className="px-2 py-1.5 bg-orange-100 text-orange-700 rounded text-xs min-w-[36px]"
                                                     >
                                                         Dò
                                                     </button>
@@ -433,7 +467,7 @@ export default function TicketListPage() {
                                                         handleDeleteTicket(ticket.id);
                                                     }}
                                                     disabled={deletingId === ticket.id}
-                                                    className="p-1.5 bg-red-100 text-red-700 rounded disabled:opacity-50"
+                                                    className="p-2 bg-red-100 text-red-700 rounded disabled:opacity-50"
                                                 >
                                                     {deletingId === ticket.id ? (
                                                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -548,7 +582,7 @@ export default function TicketListPage() {
                         <button
                             onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
                             disabled={pagination.page <= 1}
-                            className="px-3 py-1.5 border rounded text-sm disabled:opacity-50"
+                            className="px-4 py-2 border rounded text-sm disabled:opacity-50 min-w-[80px]"
                         >
                             ← Trước
                         </button>
@@ -560,7 +594,7 @@ export default function TicketListPage() {
                         <button
                             onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
                             disabled={pagination.page >= pagination.totalPages}
-                            className="px-3 py-1.5 border rounded text-sm disabled:opacity-50"
+                            className="px-4 py-2 border rounded text-sm disabled:opacity-50 min-w-[80px]"
                         >
                             Sau →
                         </button>

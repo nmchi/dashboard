@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/prisma";
 import { Role } from "@prisma/client";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 /**
  * GET /api/users
@@ -12,6 +14,11 @@ import { Role } from "@prisma/client";
  */
 export async function GET(req: NextRequest) {
     try {
+        const session = await auth.api.getSession({ headers: await headers() });
+        if (!session?.user) {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { searchParams } = new URL(req.url);
         const parentId = searchParams.get('parentId');
         const role = searchParams.get('role') as Role | null;
@@ -38,6 +45,7 @@ export async function GET(req: NextRequest) {
                 createdAt: true,
             },
             orderBy: { createdAt: 'desc' },
+            take: 500,
         });
         
         return NextResponse.json({
@@ -45,8 +53,7 @@ export async function GET(req: NextRequest) {
             data: users,
         });
         
-    } catch (error) {
-        console.error('Get users error:', error);
+    } catch {
         return NextResponse.json({
             success: false,
             error: 'Đã xảy ra lỗi',

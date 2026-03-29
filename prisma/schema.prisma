@@ -126,7 +126,8 @@ model LotterySchedule {
   province    LotteryProvince @relation(fields: [provinceId], references: [id], onDelete: Cascade)
   ordering    Int      @default(1)
 
-  @@unique([dayOfWeek, provinceId]) 
+  @@unique([dayOfWeek, provinceId])
+  @@index([provinceId])
   @@map("lottery_schedule")
 }
 
@@ -148,6 +149,7 @@ model LotteryResult {
   @@unique([provinceId, drawDate])
   @@index([drawDate])
   @@index([region, drawDate])
+  @@index([provinceId])
   @@map("lottery_result")
 }
 
@@ -204,6 +206,7 @@ model Bet {
   @@index([provinceId])
   @@index([ticketId])
   @@index([isWin])
+  @@index([typeId])
   @@map("bet")
 }
 
