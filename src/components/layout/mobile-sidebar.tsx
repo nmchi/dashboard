@@ -7,7 +7,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/lib/auth-client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { sidebarLinks } from "@/app/config/nav";
 
 interface MobileSidebarProps {
@@ -19,8 +19,9 @@ export function MobileSidebar({ userRole }: MobileSidebarProps) {
     const router = useRouter();
     const [open, setOpen] = useState(false); // State để quản lý đóng/mở
 
-    const filteredLinks = sidebarLinks.filter((link) => 
-        link.roles.includes(userRole)
+    const filteredLinks = useMemo(
+        () => sidebarLinks.filter((link) => link.roles.includes(userRole)),
+        [userRole]
     );
 
     const handleLogout = async () => {

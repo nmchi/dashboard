@@ -169,14 +169,17 @@ export default function TicketListPage() {
             let totalProcessed = 0;
             let totalSuccess = 0;
             
-            for (const playerId of playerIds) {
-                const res = await fetch('/api/tickets/process', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: playerId }),
-                });
-                
-                const data = await res.json();
+            const results = await Promise.all(
+                playerIds.map((playerId) =>
+                    fetch('/api/tickets/process', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: playerId }),
+                    }).then(r => r.json())
+                )
+            );
+
+            for (const data of results) {
                 if (data.success && data.data) {
                     totalProcessed += data.data.processed || 0;
                     totalSuccess += data.data.success || 0;

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
 import { sidebarLinks } from "@/app/config/nav";
+import { useMemo } from "react";
 
 interface SidebarProps {
     userRole: string;
@@ -16,8 +17,9 @@ export function Sidebar({ userRole }: SidebarProps) {
     const pathname = usePathname();
     const router = useRouter();
 
-    const filteredLinks = sidebarLinks.filter((link) => 
-        link.roles.includes(userRole)
+    const filteredLinks = useMemo(
+        () => sidebarLinks.filter((link) => link.roles.includes(userRole)),
+        [userRole]
     );
 
     const handleLogout = async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "@/lib/auth-client";
 import { Region } from "@prisma/client";
 import { ParseMessageResponse, ParseError } from "@/types/messages";
@@ -226,6 +226,22 @@ export default function ParserPage() {
 
     const regionLabel: Record<Region, string> = { MN: 'Miền Nam', MT: 'Miền Trung', MB: 'Miền Bắc' };
 
+    const groupedBets = useMemo(() => {
+        const map = new Map<string, { provinces: string; type: string; numbers: string[]; totalPoint: number }>();
+        for (const bet of result?.parsedResult?.bets || []) {
+            const key = `${bet.provinces.join(',')}_${bet.type}`;
+            const nums = Array.isArray(bet.numbers) ? bet.numbers : [bet.numbers];
+            if (map.has(key)) {
+                const e = map.get(key)!;
+                e.numbers.push(...nums);
+                e.totalPoint += bet.point;
+            } else {
+                map.set(key, { provinces: bet.provinces.join(', '), type: bet.type, numbers: [...nums], totalPoint: bet.point });
+            }
+        }
+        return Array.from(map.values());
+    }, [result?.parsedResult?.bets]);
+
     return (
         <div className="space-y-4 sm:space-y-6">
             <div>
@@ -337,7 +353,7 @@ export default function ParserPage() {
                         onChange={setMessage}
                         errors={validationErrors}
                         placeholder="Ví dụ: vl 12 34 dd 1n&#10;tg bl 56 78 2n&#10;ag bt 11 66 dx 5"
-                        className="border rounded-lg min-h-[7rem] sm:min-h-[8rem] focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
+                        className="border rounded-lg sm:min-h-[8rem] focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
                         disabled={!selectedPlayerId}
                     />
                     <p className="text-xs text-slate-500 mt-1 hidden sm:block">
@@ -359,7 +375,7 @@ export default function ParserPage() {
                         onClick={() => setMessage('')}
                         disabled={!message.trim()}
                         type="button"
-                        className="w-full sm:w-auto px-4 sm:px-6 py-2.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-red-50 hover:border-red-300 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base"
+                        className="w-full sm:w-auto px-4 sm:px-6 py-2.5 rounded-lg border border-slate-300 text-white bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base"
                     >
                         ✕ Xóa
                     </button>
@@ -511,29 +527,16 @@ export default function ParserPage() {
                     </h3>
 
                     <div className="sm:hidden space-y-2">
-                        {(() => {
-                            const groupedBets = new Map<string, { provinces: string; type: string; numbers: string[]; totalPoint: number }>();
-                            for (const bet of result.parsedResult?.bets || []) {
-                                const key = `${bet.provinces.join(',')}_${bet.type}`;
-                                const nums = Array.isArray(bet.numbers) ? bet.numbers : [bet.numbers];
-                                if (groupedBets.has(key)) {
-                                    const e = groupedBets.get(key)!;
-                                    e.numbers.push(...nums); e.totalPoint += bet.point;
-                                } else {
-                                    groupedBets.set(key, { provinces: bet.provinces.join(', '), type: bet.type, numbers: [...nums], totalPoint: bet.point });
-                                }
-                            }
-                            return Array.from(groupedBets.values()).map((group, idx) => (
-                                <div key={idx} className="p-3 bg-slate-50 rounded-lg border text-sm">
-                                    <div className="flex items-start justify-between mb-1">
-                                        <span className="font-medium text-slate-700">{group.provinces}</span>
-                                        <span className="text-blue-600 font-semibold">{group.totalPoint}đ</span>
-                                    </div>
-                                    <div className="text-xs text-slate-500 mb-1">{group.type}</div>
-                                    <div className="font-mono text-xs text-slate-600 break-all">{group.numbers.join(' ')}</div>
+                        {groupedBets.map((group, idx) => (
+                            <div key={idx} className="p-3 bg-slate-50 rounded-lg border text-sm">
+                                <div className="flex items-start justify-between mb-1">
+                                    <span className="font-medium text-slate-700">{group.provinces}</span>
+                                    <span className="text-blue-600 font-semibold">{group.totalPoint}đ</span>
                                 </div>
-                            ));
-                        })()}
+                                <div className="text-xs text-slate-500 mb-1">{group.type}</div>
+                                <div className="font-mono text-xs text-slate-600 break-all">{group.numbers.join(' ')}</div>
+                            </div>
+                        ))}
                     </div>
 
                     <div className="hidden sm:block overflow-x-auto border rounded-lg">
@@ -547,27 +550,14 @@ export default function ParserPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {(() => {
-                                    const groupedBets = new Map<string, { provinces: string; type: string; numbers: string[]; totalPoint: number }>();
-                                    for (const bet of result.parsedResult?.bets || []) {
-                                        const key = `${bet.provinces.join(',')}_${bet.type}`;
-                                        const nums = Array.isArray(bet.numbers) ? bet.numbers : [bet.numbers];
-                                        if (groupedBets.has(key)) {
-                                            const e = groupedBets.get(key)!;
-                                            e.numbers.push(...nums); e.totalPoint += bet.point;
-                                        } else {
-                                            groupedBets.set(key, { provinces: bet.provinces.join(', '), type: bet.type, numbers: [...nums], totalPoint: bet.point });
-                                        }
-                                    }
-                                    return Array.from(groupedBets.values()).map((group, idx) => (
-                                        <tr key={idx} className="border-t hover:bg-slate-50">
-                                            <td className="px-3 py-2">{group.provinces}</td>
-                                            <td className="px-3 py-2 font-mono">{group.numbers.join(' ')}</td>
-                                            <td className="px-3 py-2">{group.type}</td>
-                                            <td className="px-3 py-2 text-right">{group.totalPoint}</td>
-                                        </tr>
-                                    ));
-                                })()}
+                                 {groupedBets.map((group, idx) => (
+                                    <tr key={idx} className="border-t hover:bg-slate-50">
+                                        <td className="px-3 py-2">{group.provinces}</td>
+                                        <td className="px-3 py-2 font-mono">{group.numbers.join(' ')}</td>
+                                        <td className="px-3 py-2">{group.type}</td>
+                                        <td className="px-3 py-2 text-right">{group.totalPoint}</td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>

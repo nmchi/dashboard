@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -136,21 +136,21 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
         return { xac, thucthu, trung, cailoi, tongCaiLoi, trungDetail };
     };
 
+    const mbTotal = useMemo(() => calculateRegionTotal('mb'), [reportData, nhanVe]);
+    const mtTotal = useMemo(() => calculateRegionTotal('mt'), [reportData, nhanVe]);
+    const mnTotal = useMemo(() => calculateRegionTotal('mn'), [reportData, nhanVe]);
+
     const calculateGrandTotal = () => {
-        const mb = calculateRegionTotal('mb');
-        const mt = calculateRegionTotal('mt');
-        const mn = calculateRegionTotal('mn');
-        
         const noCu1Val = parseFloat(noCu1) * 1000 || 0;
         const noCu2Val = parseFloat(noCu2) * 1000 || 0;
         
-        const tongCaiLoi = mb.tongCaiLoi + mt.tongCaiLoi + mn.tongCaiLoi + noCu1Val + noCu2Val;
+        const tongCaiLoi = mbTotal.tongCaiLoi + mtTotal.tongCaiLoi + mnTotal.tongCaiLoi + noCu1Val + noCu2Val;
         
         return {
-            xac: mb.xac + mt.xac + mn.xac,
-            thucthu: mb.thucthu + mt.thucthu + mn.thucthu,
-            trung: mb.trung + mt.trung + mn.trung,
-            cailoi: mb.cailoi + mt.cailoi + mn.cailoi,
+            xac: mbTotal.xac + mtTotal.xac + mnTotal.xac,
+            thucthu: mbTotal.thucthu + mtTotal.thucthu + mnTotal.thucthu,
+            trung: mbTotal.trung + mtTotal.trung + mnTotal.trung,
+            cailoi: mbTotal.cailoi + mtTotal.cailoi + mnTotal.cailoi,
             tongCaiLoi,
         };
     };
@@ -354,7 +354,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                             
                             {reportData && (
                                 <>
-                                    {reportData.mn && calculateRegionTotal('mn').xac > 0 && (
+                                    {reportData.mn && mnTotal.xac > 0 && (
                                         <RegionReport
                                             name="MN"
                                             data={reportData.mn}
@@ -363,11 +363,11 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                                             showThucThuTotal={showThucThuTotal}
                                             detailMode={detailMode}
                                             formatMoney={formatMoney}
-                                            calculateRegionTotal={() => calculateRegionTotal('mn')}
+                                            total={mnTotal}
                                         />
                                     )}
                                     
-                                    {reportData.mt && calculateRegionTotal('mt').xac > 0 && (
+                                    {reportData.mt && mtTotal.xac > 0 && (
                                         <RegionReport
                                             name="MT"
                                             data={reportData.mt}
@@ -376,11 +376,11 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                                             showThucThuTotal={showThucThuTotal}
                                             detailMode={detailMode}
                                             formatMoney={formatMoney}
-                                            calculateRegionTotal={() => calculateRegionTotal('mt')}
+                                            total={mtTotal}
                                         />
                                     )}
                                     
-                                    {reportData.mb && calculateRegionTotal('mb').xac > 0 && (
+                                    {reportData.mb && mbTotal.xac > 0 && (
                                         <RegionReport
                                             name="MB"
                                             data={reportData.mb}
@@ -389,13 +389,11 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                                             showThucThuTotal={showThucThuTotal}
                                             detailMode={detailMode}
                                             formatMoney={formatMoney}
-                                            calculateRegionTotal={() => calculateRegionTotal('mb')}
+                                            total={mbTotal}
                                         />
                                     )}
                                     
-                                    {calculateRegionTotal('mn').xac === 0 && 
-                                     calculateRegionTotal('mt').xac === 0 && 
-                                     calculateRegionTotal('mb').xac === 0 && (
+                                    {mnTotal.xac === 0 && mtTotal.xac === 0 && mbTotal.xac === 0 && (
                                         <div className="text-slate-500 italic py-4 text-center text-sm">
                                             Không có dữ liệu báo cáo
                                         </div>
@@ -484,7 +482,7 @@ function RegionReport({
     showThucThuTotal,
     detailMode,
     formatMoney,
-    calculateRegionTotal,
+    total,
 }: {
     name: string;
     data: RegionData;
@@ -493,9 +491,10 @@ function RegionReport({
     showThucThuTotal: boolean;
     detailMode: 'off' | 'xac' | 'thucthu';
     formatMoney: (n: number) => string;
-    calculateRegionTotal: () => { xac: number; thucthu: number; trung: number; cailoi: number; tongCaiLoi: number; trungDetail: { '2c': number; '3c-4c': number; 'da': number; 'dx': number } };
+    // calculateRegionTotal: () => { xac: number; thucthu: number; trung: number; cailoi: number; tongCaiLoi: number; trungDetail: { '2c': number; '3c-4c': number; 'da': number; 'dx': number } };
+    total: { xac: number; thucthu: number; trung: number; cailoi: number; tongCaiLoi: number; trungDetail: { '2c': number; '3c-4c': number; 'da': number; 'dx': number } };
 }) {
-    const total = calculateRegionTotal();
+    // const total = calculateRegionTotal();
     
     const buildDetailInline = () => {
         const parts: string[] = [];
