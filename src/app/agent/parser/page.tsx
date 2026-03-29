@@ -337,7 +337,7 @@ export default function ParserPage() {
                         onChange={setMessage}
                         errors={validationErrors}
                         placeholder="Ví dụ: vl 12 34 dd 1n&#10;tg bl 56 78 2n&#10;ag bt 11 66 dx 5"
-                        className="border rounded-lg h-28 sm:h-32 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
+                        className="border rounded-lg min-h-[7rem] sm:min-h-[8rem] focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
                         disabled={!selectedPlayerId}
                     />
                     <p className="text-xs text-slate-500 mt-1 hidden sm:block">
@@ -353,6 +353,15 @@ export default function ParserPage() {
                         className="w-full sm:w-auto bg-blue-600 text-white px-4 sm:px-6 py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base"
                     >
                         {loading ? 'Đang xử lý...' : '🔍 Phân tích'}
+                    </button>
+
+                    <button
+                        onClick={() => setMessage('')}
+                        disabled={!message.trim()}
+                        type="button"
+                        className="w-full sm:w-auto px-4 sm:px-6 py-2.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-red-50 hover:border-red-300 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base"
+                    >
+                        ✕ Xóa
                     </button>
 
                     {result?.success && result.parsedResult?.bets && result.parsedResult.bets.length > 0 && (
@@ -386,8 +395,8 @@ export default function ParserPage() {
                                 <button
                                     onClick={() => setShowNetWin(!showNetWin)}
                                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${showNetWin
-                                            ? 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'
-                                            : 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
+                                        ? 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'
+                                        : 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
                                         }`}
                                 >
                                     <span className={`w-2 h-2 rounded-full ${showNetWin ? 'bg-blue-600' : 'bg-slate-400'}`}></span>
