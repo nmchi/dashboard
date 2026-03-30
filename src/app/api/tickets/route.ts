@@ -43,11 +43,20 @@ export async function GET(req: NextRequest) {
             }, { status: 400 });
         }
 
+        const sessionUserId = session.user.id;
+        const isAdmin = ['admin', 'superadmin'].includes(session.user.role ?? '');
+
         const where: Prisma.TicketWhereInput = {};
 
         if (userId) {
             where.userId = userId;
+            if (!isAdmin) {
+                where.user = { parentId: sessionUserId };
+            }
         } else if (parentId) {
+            if (!isAdmin && parentId !== sessionUserId) {
+                return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+            }
             where.user = { parentId };
         }
 
@@ -233,8 +242,8 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * DELETE /api/tickets?ticketId=xxx&userId=xxx
- * 
+ * DELETE /api/tickets?ticketId=xxx
+ *
  * Xóa ticket - chỉ agent mới có quyền xóa ticket của players thuộc mình
  */
 export async function DELETE(req: NextRequest) {
@@ -244,21 +253,16 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
+        // Lấy agentId từ session — KHÔNG tin vào query param để tránh IDOR
+        const agentId = session.user.id;
+
         const { searchParams } = new URL(req.url);
         const ticketId = searchParams.get('ticketId');
-        const userId = searchParams.get('userId'); // Agent ID
 
         if (!ticketId) {
             return NextResponse.json({
                 success: false,
                 error: 'Thiếu ticketId',
-            }, { status: 400 });
-        }
-
-        if (!userId) {
-            return NextResponse.json({
-                success: false,
-                error: 'Thiếu userId (Agent ID)',
             }, { status: 400 });
         }
 
@@ -280,7 +284,7 @@ export async function DELETE(req: NextRequest) {
         }
 
         // Kiểm tra quyền: Agent chỉ được xóa ticket của players thuộc mình
-        if (ticket.user.parentId !== userId) {
+        if (ticket.user.parentId !== agentId) {
             return NextResponse.json({
                 success: false,
                 error: 'Không có quyền xóa ticket này',

@@ -7,9 +7,9 @@ import { processPendingTickets } from "@/utils/ticket-processor";
 const CRON_SECRET = process.env.CRON_SECRET;
 
 function isAuthorized(request: NextRequest): boolean {
+  // CRON_SECRET bắt buộc phải có — từ chối nếu chưa cấu hình
   if (!CRON_SECRET) {
-    console.warn("⚠️ CRON_SECRET not set - API is unprotected!");
-    return true;
+    return false;
   }
 
   const authHeader = request.headers.get("Authorization");

@@ -15,9 +15,8 @@ export async function POST(request: NextRequest) {
 
         const user = await db.user.findUnique({
             where: { username },
-            select: { 
+            select: {
                 banned: true,
-                role: true,
             },
         });
 
@@ -25,9 +24,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ banned: false });
         }
 
-        return NextResponse.json({ 
+        return NextResponse.json({
             banned: user.banned,
-            role: user.role,
         });
     } catch (error) {
         console.error("[CHECK_BANNED]", error);

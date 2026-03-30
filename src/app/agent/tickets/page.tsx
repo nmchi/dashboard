@@ -155,7 +155,7 @@ export default function TicketListPage() {
         setDeletingId(ticketId);
 
         try {
-            const res = await fetch(`/api/tickets?ticketId=${ticketId}&userId=${session.user.id}`, {
+            const res = await fetch(`/api/tickets?ticketId=${ticketId}`, {
                 method: 'DELETE',
             });
 

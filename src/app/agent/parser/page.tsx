@@ -390,7 +390,7 @@ export default function ParserPage() {
                         onChange={setMessage}
                         errors={validationErrors}
                         placeholder="Ví dụ: vl 12 34 dd 1n&#10;tg bl 56 78 2n&#10;ag bt 11 66 dx 5"
-                        className="border rounded-lg sm:min-h-[8rem] focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
+                        className="border rounded-lg min-h-[7rem] sm:min-h-[8rem] focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
                         disabled={!selectedPlayerId}
                     />
                     <p className="text-xs text-slate-500 mt-1 hidden sm:block">

@@ -79,6 +79,7 @@ export default function ErrorHighlightTextarea({
 }: ErrorHighlightTextareaProps) {
     const editorRef = useRef<HTMLDivElement>(null);
     const [highlightRanges, setHighlightRanges] = useState<HighlightRange[]>([]);
+    const [isFocused, setIsFocused] = useState(false);
 
     // Tìm vị trí lỗi trong text dựa trên rawFragment
     useEffect(() => {
@@ -165,10 +166,12 @@ export default function ErrorHighlightTextarea({
 
     // Update editor khi value hoặc highlights thay đổi từ bên ngoài
     useEffect(() => {
-        if (editorRef.current && document.activeElement !== editorRef.current) {
-            editorRef.current.innerHTML = renderHighlightedHTML();
-        }
-    }, [value, highlightRanges, renderHighlightedHTML]);
+        if (!editorRef.current) return;
+        // Không update khi đang focus để tránh làm mất vị trí con trỏ
+        if (isFocused) return;
+        // renderHighlightedHTML trả về '' khi value rỗng → tự xử lý cả 2 trường hợp
+        editorRef.current.innerHTML = renderHighlightedHTML();
+    }, [value, highlightRanges, renderHighlightedHTML, isFocused]);
 
     const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
         const text = e.currentTarget.innerText;
@@ -182,23 +185,17 @@ export default function ErrorHighlightTextarea({
     };
 
     const handleFocus = () => {
+        setIsFocused(true);
+        // Chuyển từ highlighted HTML về plain text để con trỏ hoạt động đúng
         if (editorRef.current) {
             editorRef.current.innerText = value;
         }
     };
 
     const handleBlur = () => {
-        if (editorRef.current) {
-            editorRef.current.innerHTML = renderHighlightedHTML();
-        }
-    };
-
-    const handleClear = () => {
-        if (editorRef.current) {
-            editorRef.current.innerHTML = '';
-            editorRef.current.focus();
-        }
-        onChange('');
+        // Chỉ cập nhật state, KHÔNG mutate DOM trực tiếp
+        // useEffect sẽ set highlighted HTML sau khi isFocused = false
+        setIsFocused(false);
     };
 
     return (
@@ -213,7 +210,7 @@ export default function ErrorHighlightTextarea({
                 className="w-full outline-none"
                 style={{
                     minHeight: 'inherit',
-                    padding: '0.5rem 2.25rem 0.5rem 0.75rem',
+                    padding: '0.5rem 0.75rem',
                     lineHeight: '1.5',
                     fontSize: '0.875rem',
                     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
@@ -239,24 +236,6 @@ export default function ErrorHighlightTextarea({
                 </div>
             )}
 
-            {/* Clear button */}
-            {value && !disabled && (
-                <button
-                    type="button"
-                    onMouseDown={(e) => {
-                        e.preventDefault(); // tránh blur trước khi xử lý
-                        handleClear();
-                    }}
-                    className="absolute top-1.5 right-1.5 flex items-center justify-center w-6 h-6 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                    title="Xóa toàn bộ nội dung"
-                    aria-label="Xóa nội dung"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                </button>
-            )}
 
             {/* Hiển thị danh sách lỗi bên dưới */}
             {errors.length > 0 && (

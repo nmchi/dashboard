@@ -12,10 +12,9 @@ const CRON_SECRET = process.env.CRON_SECRET;
  * 2. Query param: ?secret=<secret>
  */
 function isAuthorized(request: NextRequest): boolean {
-  // Nếu không set CRON_SECRET trong env, cho phép tất cả (dev mode)
+  // CRON_SECRET bắt buộc phải có — từ chối nếu chưa cấu hình
   if (!CRON_SECRET) {
-    console.warn("⚠️ CRON_SECRET not set - API is unprotected!");
-    return true;
+    return false;
   }
 
   // Check Authorization header

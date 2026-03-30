@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/prisma";
 import { Region } from "@prisma/client";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import { parseMessage, normalizeMessage } from "@/utils/parser";
 import { getProvincesByDay } from "@/utils/province";
 import {
@@ -20,6 +22,11 @@ import { BetSettings as FlatBetSettings, DEFAULT_BET_SETTINGS as FLAT_DEFAULT } 
 
 export async function POST(req: NextRequest) {
     try {
+        const session = await auth.api.getSession({ headers: await headers() });
+        if (!session?.user) {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        }
+
         const body = await req.json();
         const { message, userId, region = Region.MN, drawDate } = body;
 
@@ -96,8 +103,7 @@ export async function POST(req: NextRequest) {
                 : undefined,
         } as ParseMessageResponse);
 
-    } catch (error) {
-        console.error('Parse message error:', error);
+    } catch {
         return NextResponse.json({
             success: false,
             error: 'Lỗi phân tích tin nhắn',
