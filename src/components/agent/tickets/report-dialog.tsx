@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { FileText, Copy, Check } from 'lucide-react';
 
 interface ReportDialogProps {
@@ -47,13 +46,13 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
     const [detailMode, setDetailMode] = useState<'off' | 'xac' | 'thucthu'>('off');
     
     const [nhanVe, setNhanVe] = useState<{
-        mb: { '2c': number; '3c-4c': number; 'da': number };
-        mt: { '2c': number; '3c-4c': number; 'da': number };
-        mn: { '2c': number; '3c-4c': number; 'da': number };
+        mb: { '2c': number; '3c-4c': number; 'da': number; 'dx': number };
+        mt: { '2c': number; '3c-4c': number; 'da': number; 'dx': number };
+        mn: { '2c': number; '3c-4c': number; 'da': number; 'dx': number };
     }>({
-        mb: { '2c': DEFAULT_NHAN_VE, '3c-4c': DEFAULT_NHAN_VE, 'da': DEFAULT_NHAN_VE },
-        mt: { '2c': DEFAULT_NHAN_VE, '3c-4c': DEFAULT_NHAN_VE, 'da': DEFAULT_NHAN_VE },
-        mn: { '2c': DEFAULT_NHAN_VE, '3c-4c': DEFAULT_NHAN_VE, 'da': DEFAULT_NHAN_VE },
+        mb: { '2c': DEFAULT_NHAN_VE, '3c-4c': DEFAULT_NHAN_VE, 'da': DEFAULT_NHAN_VE, 'dx': DEFAULT_NHAN_VE },
+        mt: { '2c': DEFAULT_NHAN_VE, '3c-4c': DEFAULT_NHAN_VE, 'da': DEFAULT_NHAN_VE, 'dx': DEFAULT_NHAN_VE },
+        mn: { '2c': DEFAULT_NHAN_VE, '3c-4c': DEFAULT_NHAN_VE, 'da': DEFAULT_NHAN_VE, 'dx': DEFAULT_NHAN_VE },
     });
     
     const [reportData, setReportData] = useState<ReportData | null>(null);
@@ -89,56 +88,56 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
         }
     }, [open, fetchReport]);
 
-    const calculateRegionTotal = (region: 'mb' | 'mt' | 'mn') => {
-        if (!reportData) return { 
+    const calculateRegionTotal = useCallback((region: 'mb' | 'mt' | 'mn') => {
+        if (!reportData) return {
             xac: 0, thucthu: 0, trung: 0, cailoi: 0, tongCaiLoi: 0,
             trungDetail: { '2c': 0, '3c-4c': 0, 'da': 0, 'dx': 0 }
         };
-        
+
         const data = reportData[region];
         const rates = nhanVe[region];
-        
+
         let xac = 0;
         let thucthu = 0;
         let trung = 0;
-        
+
         xac += data['2c'].xac;
         thucthu += data['2c'].thucthu;
         trung += data['2c'].winAmount;
-        
+
         xac += data['3c-4c'].xac;
         thucthu += data['3c-4c'].thucthu;
         trung += data['3c-4c'].winAmount;
-        
+
         xac += data['da'].xac;
         thucthu += data['da'].thucthu;
         trung += data['da'].winAmount;
-        
+
         xac += data['dx'].xac;
         thucthu += data['dx'].thucthu;
         trung += data['dx'].winAmount;
-        
+
         const cailoi = thucthu - trung;
-        
-        const tongCaiLoi = 
+
+        const tongCaiLoi =
             (data['2c'].thucthu - data['2c'].winAmount) * rates['2c'] +
             (data['3c-4c'].thucthu - data['3c-4c'].winAmount) * rates['3c-4c'] +
             (data['da'].thucthu - data['da'].winAmount) * rates['da'] +
-            (data['dx'].thucthu - data['dx'].winAmount) * rates['da'];
-        
+            (data['dx'].thucthu - data['dx'].winAmount) * rates['dx'];
+
         const trungDetail = {
             '2c': data['2c'].winAmount,
             '3c-4c': data['3c-4c'].winAmount,
             'da': data['da'].winAmount,
             'dx': data['dx'].winAmount,
         };
-        
-        return { xac, thucthu, trung, cailoi, tongCaiLoi, trungDetail };
-    };
 
-    const mbTotal = useMemo(() => calculateRegionTotal('mb'), [reportData, nhanVe]);
-    const mtTotal = useMemo(() => calculateRegionTotal('mt'), [reportData, nhanVe]);
-    const mnTotal = useMemo(() => calculateRegionTotal('mn'), [reportData, nhanVe]);
+        return { xac, thucthu, trung, cailoi, tongCaiLoi, trungDetail };
+    }, [reportData, nhanVe]);
+
+    const mbTotal = useMemo(() => calculateRegionTotal('mb'), [calculateRegionTotal]);
+    const mtTotal = useMemo(() => calculateRegionTotal('mt'), [calculateRegionTotal]);
+    const mnTotal = useMemo(() => calculateRegionTotal('mn'), [calculateRegionTotal]);
 
     const calculateGrandTotal = () => {
         const noCu1Val = parseFloat(noCu1) * 1000 || 0;
@@ -219,10 +218,11 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
             text += `Trúng: ${trungParts.join(' ')}\n`;
             
             const loiLabel = regionTotal.cailoi >= 0 ? 'Cái lời' : 'Cái lỗ';
-            text += `${loiLabel}: ${formatMoney(Math.abs(regionTotal.cailoi))} (${nhanVe[region.key]['2c']} -> ${formatMoney(regionTotal.tongCaiLoi)})\n\n`;
+            text += `${loiLabel}: ${formatMoney(Math.abs(regionTotal.cailoi))} -> ${formatMoney(regionTotal.tongCaiLoi)}\n\n`;
         }
         
-        text += `Tổng: cái lời ${formatMoney(total.tongCaiLoi)}\n`;
+        const tongLoiLabel = total.tongCaiLoi >= 0 ? 'cái lời' : 'cái lỗ';
+        text += `Tổng: ${tongLoiLabel} ${formatMoney(Math.abs(total.tongCaiLoi))}\n`;
         
         return text;
     };
@@ -234,7 +234,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const updateNhanVe = (region: 'mb' | 'mt' | 'mn', type: '2c' | '3c-4c' | 'da', value: string) => {
+    const updateNhanVe = (region: 'mb' | 'mt' | 'mn', type: '2c' | '3c-4c' | 'da' | 'dx', value: string) => {
         const numValue = parseFloat(value) || DEFAULT_NHAN_VE;
         setNhanVe(prev => ({
             ...prev,
@@ -426,7 +426,8 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                                             <th className="border p-1.5 text-left">Nhân về</th>
                                             <th className="border p-1.5 text-center">2C</th>
                                             <th className="border p-1.5 text-center">3C-4C</th>
-                                            <th className="border p-1.5 text-center">Đá/ĐX</th>
+                                            <th className="border p-1.5 text-center">Đá</th>
+                                            <th className="border p-1.5 text-center">ĐX</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -439,7 +440,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                                                 }`}>
                                                     {region === 'mb' ? 'MB' : region === 'mt' ? 'MT' : 'MN'}
                                                 </td>
-                                                {(['2c', '3c-4c', 'da'] as const).map((type) => (
+                                                {(['2c', '3c-4c', 'da', 'dx'] as const).map((type) => (
                                                     <td key={type} className="border p-1">
                                                         <Input
                                                             type="number"
@@ -486,7 +487,7 @@ function RegionReport({
 }: {
     name: string;
     data: RegionData;
-    rates: { '2c': number; '3c-4c': number; 'da': number };
+    rates: { '2c': number; '3c-4c': number; 'da': number; 'dx': number };
     showXacTotal: boolean;
     showThucThuTotal: boolean;
     detailMode: 'off' | 'xac' | 'thucthu';
@@ -549,7 +550,7 @@ function RegionReport({
                 </span>
                 {' '}
                 <span className="text-slate-400">
-                    ({rates['2c']}→{formatMoney(total.tongCaiLoi)})
+                    (→{formatMoney(total.tongCaiLoi)})
                 </span>
             </div>
         </div>

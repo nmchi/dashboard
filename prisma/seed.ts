@@ -46,7 +46,7 @@ async function safeDeleteMany(model: { deleteMany: () => Promise<unknown> }, nam
     try {
         await model.deleteMany();
         console.log(`  ✓ Đã xóa ${name}`);
-    } catch (error) {
+    } catch {
         console.log(`  ⚠ Bỏ qua ${name} (chưa tồn tại)`);
     }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { ParseError } from "@/types/messages";
 
 interface ErrorHighlightTextareaProps {
@@ -78,24 +78,18 @@ export default function ErrorHighlightTextarea({
     className = "",
 }: ErrorHighlightTextareaProps) {
     const editorRef = useRef<HTMLDivElement>(null);
-    const [highlightRanges, setHighlightRanges] = useState<HighlightRange[]>([]);
     const [isFocused, setIsFocused] = useState(false);
 
-    // Tìm vị trí lỗi trong text dựa trên rawFragment
-    useEffect(() => {
-        if (!value || errors.length === 0) {
-            setHighlightRanges([]);
-            return;
-        }
+    const highlightRanges = useMemo<HighlightRange[]>(() => {
+        if (!value || errors.length === 0) return [];
 
         const ranges: HighlightRange[] = [];
-        const usedPositions = new Set<string>(); // Tránh highlight trùng vị trí
+        const usedPositions = new Set<string>();
 
         for (const error of errors) {
             const fragment = error.rawFragment;
             if (!fragment) continue;
 
-            // Tìm vị trí fragment trong raw text
             let searchFrom = 0;
             let found = false;
 
@@ -109,16 +103,13 @@ export default function ErrorHighlightTextarea({
                     ranges.push({ start: pos.start, end: pos.end, error });
                     found = true;
                 } else {
-                    // Vị trí đã dùng, tìm tiếp
                     searchFrom = pos.start + 1;
                 }
             }
         }
 
-        // Sắp xếp theo vị trí
         ranges.sort((a, b) => a.start - b.start);
 
-        // Loại bỏ overlap
         const filtered: HighlightRange[] = [];
         for (const range of ranges) {
             const last = filtered[filtered.length - 1];
@@ -127,7 +118,7 @@ export default function ErrorHighlightTextarea({
             }
         }
 
-        setHighlightRanges(filtered);
+        return filtered;
     }, [value, errors]);
 
     // Render HTML với highlight
@@ -181,7 +172,19 @@ export default function ErrorHighlightTextarea({
     const handlePaste = (e: React.ClipboardEvent) => {
         e.preventDefault();
         const text = e.clipboardData.getData('text/plain');
-        document.execCommand('insertText', false, text);
+        const selection = window.getSelection();
+        if (!selection || !selection.rangeCount) return;
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        const textNode = document.createTextNode(text);
+        range.insertNode(textNode);
+        range.setStartAfter(textNode);
+        range.setEndAfter(textNode);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        if (editorRef.current) {
+            onChange(editorRef.current.innerText);
+        }
     };
 
     const handleFocus = () => {

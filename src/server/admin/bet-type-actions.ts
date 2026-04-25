@@ -10,9 +10,10 @@ const BetTypeSchema = z.object({
     aliases: z.string().min(1),
 });
 
-export async function createBetType(data: z.infer<typeof BetTypeSchema>) {
+export async function createBetType(raw: z.infer<typeof BetTypeSchema>) {
     try {
         await requireAdmin();
+        const data = BetTypeSchema.parse(raw);
         await db.betType.create({ data });
         revalidatePath("/admin/bet-types");
         return { success: true };
@@ -22,9 +23,10 @@ export async function createBetType(data: z.infer<typeof BetTypeSchema>) {
     }
 }
 
-export async function updateBetType(id: string, data: z.infer<typeof BetTypeSchema>) {
+export async function updateBetType(id: string, raw: z.infer<typeof BetTypeSchema>) {
     try {
         await requireAdmin();
+        const data = BetTypeSchema.parse(raw);
         await db.betType.update({ where: { id }, data });
         revalidatePath("/admin/bet-types");
         return { success: true };

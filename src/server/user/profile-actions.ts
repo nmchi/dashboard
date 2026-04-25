@@ -15,11 +15,17 @@ const ChangePasswordSchema = z.object({
     path: ["confirmPassword"],
 });
 
-export async function changePassword(data: z.infer<typeof ChangePasswordSchema>) {
+export async function changePassword(raw: z.infer<typeof ChangePasswordSchema>) {
     try {
+        const parsed = ChangePasswordSchema.safeParse(raw);
+        if (!parsed.success) {
+            return { error: parsed.error.issues[0]?.message || "Dữ liệu không hợp lệ" };
+        }
+        const data = parsed.data;
+
         const session = await auth.api.getSession({ headers: await headers() });
         const userId = session?.user?.id;
-        
+
         if (!userId) return { error: "Bạn chưa đăng nhập" };
 
         const user = await db.user.findUnique({ 

@@ -18,10 +18,10 @@ const ProvinceSchema = z.object({
     schedules: z.array(ScheduleInputSchema).optional(),
 });
 
-export async function createProvince(data: z.infer<typeof ProvinceSchema>) {
+export async function createProvince(raw: z.infer<typeof ProvinceSchema>) {
     try {
         await requireAdmin();
-        const { schedules, ...provinceData } = data;
+        const { schedules, ...provinceData } = ProvinceSchema.parse(raw);
 
         await db.lotteryProvince.create({
             data: {
@@ -43,10 +43,10 @@ export async function createProvince(data: z.infer<typeof ProvinceSchema>) {
     }
 }
 
-export async function updateProvince(id: string, data: z.infer<typeof ProvinceSchema>) {
+export async function updateProvince(id: string, raw: z.infer<typeof ProvinceSchema>) {
     try {
         await requireAdmin();
-        const { schedules, ...provinceData } = data;
+        const { schedules, ...provinceData } = ProvinceSchema.parse(raw);
 
         await db.$transaction(async (tx) => {
             await tx.lotteryProvince.update({

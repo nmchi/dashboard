@@ -308,7 +308,6 @@ function createBets(
         }
 
         // Validate số đài - Nếu < 2 đài, tự động bổ sung từ đài ưu tiên / đài hôm nay
-        let finalProvinces = provinces;
         let finalProvinceNames = provinceNames;
 
         if (provinceCount < 2) {
@@ -345,7 +344,6 @@ function createBets(
                 return bets; // Không tạo bet
             }
 
-            finalProvinces = selectedProvinces;
             finalProvinceNames = selectedProvinces.map(p => p.name);
         }
 
