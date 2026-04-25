@@ -304,7 +304,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                                     variant={showXacTotal ? 'default' : 'outline'}
                                     size="sm"
                                     onClick={() => setShowXacTotal(!showXacTotal)}
-                                    className="text-xs flex-1 h-8"
+                                    className="text-xs flex-1 h-11"
                                 >
                                     Tiền xác {showXacTotal ? '✓' : ''}
                                 </Button>
@@ -313,7 +313,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                                     variant={showThucThuTotal ? 'default' : 'outline'}
                                     size="sm"
                                     onClick={() => setShowThucThuTotal(!showThucThuTotal)}
-                                    className="text-xs flex-1 h-8"
+                                    className="text-xs flex-1 h-11"
                                 >
                                     Thực thu {showThucThuTotal ? '✓' : ''}
                                 </Button>
@@ -325,7 +325,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                                     variant={detailMode === 'off' ? 'default' : 'ghost'}
                                     size="sm"
                                     onClick={() => setDetailMode('off')}
-                                    className="rounded-none text-xs flex-1 h-8"
+                                    className="rounded-none text-xs flex-1 h-11"
                                 >
                                     Tắt
                                 </Button>
@@ -420,7 +420,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                             </div>
                             
                             <div className="overflow-x-auto -mx-3 px-3">
-                                <table className="w-full text-xs border min-w-[300px]">
+                                <table className="w-full text-xs border min-w-[380px]">
                                     <thead>
                                         <tr className="bg-slate-100">
                                             <th className="border p-1.5 text-left">Nhân về</th>
@@ -447,7 +447,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                                                             step="0.01"
                                                             value={nhanVe[region][type]}
                                                             onChange={(e) => updateNhanVe(region, type, e.target.value)}
-                                                            className="h-7 text-center text-xs w-full min-w-[50px]"
+                                                            className="h-9 text-center w-full min-w-[60px]"
                                                         />
                                                     </td>
                                                 ))}
@@ -459,7 +459,10 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                         </div>
                         
                         {/* Buttons */}
-                        <div className="flex gap-2 pt-2 sticky bottom-0 bg-white -mx-3 px-3 py-2 border-t sm:border-0 sm:static sm:bg-transparent">
+                        <div
+                            className="flex gap-2 pt-2 sticky bottom-0 bg-white -mx-3 px-3 py-2 border-t sm:border-0 sm:static sm:bg-transparent"
+                            style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+                        >
                             <Button variant="outline" onClick={() => setOpen(false)} className="flex-1 sm:flex-none">
                                 Thoát
                             </Button>

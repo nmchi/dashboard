@@ -215,7 +215,7 @@ export default function ErrorHighlightTextarea({
                     minHeight: 'inherit',
                     padding: '0.5rem 0.75rem',
                     lineHeight: '1.5',
-                    fontSize: '0.875rem',
+                    fontSize: '1rem',
                     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',
@@ -231,7 +231,7 @@ export default function ErrorHighlightTextarea({
                     style={{
                         padding: '0.5rem 0.75rem',
                         lineHeight: '1.5',
-                        fontSize: '0.875rem',
+                        fontSize: '1rem',
                         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                     }}
                 >
