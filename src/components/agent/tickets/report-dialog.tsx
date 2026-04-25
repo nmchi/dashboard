@@ -234,13 +234,15 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const updateNhanVe = (region: 'mb' | 'mt' | 'mn', type: '2c' | '3c-4c' | 'da' | 'dx', value: string) => {
+    const updateNhanVe = (region: 'mb' | 'mt' | 'mn', type: '2c' | '3c-4c' | 'da', value: string) => {
         const numValue = parseFloat(value) || DEFAULT_NHAN_VE;
         setNhanVe(prev => ({
             ...prev,
             [region]: {
                 ...prev[region],
                 [type]: numValue,
+                // da và dx dùng chung tỷ lệ
+                ...(type === 'da' ? { 'dx': numValue } : {}),
             }
         }));
     };
@@ -404,9 +406,9 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                             {grandTotal.xac > 0 && (
                                 <div className="border-t border-slate-300 pt-2 mt-2">
                                     <div className="font-bold text-sm sm:text-base">
-                                        Tổng: cái lời{' '}
+                                        Tổng: {grandTotal.tongCaiLoi >= 0 ? 'cái lời' : 'cái lỗ'}{' '}
                                         <span className={grandTotal.tongCaiLoi >= 0 ? 'text-blue-600' : 'text-red-600'}>
-                                            {formatMoney(grandTotal.tongCaiLoi)}
+                                            {formatMoney(Math.abs(grandTotal.tongCaiLoi))}
                                         </span>
                                     </div>
                                 </div>
@@ -420,14 +422,13 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                             </div>
                             
                             <div className="overflow-x-auto -mx-3 px-3">
-                                <table className="w-full text-xs border min-w-[380px]">
+                                <table className="w-full text-xs border min-w-[300px]">
                                     <thead>
                                         <tr className="bg-slate-100">
                                             <th className="border p-1.5 text-left">Nhân về</th>
                                             <th className="border p-1.5 text-center">2C</th>
                                             <th className="border p-1.5 text-center">3C-4C</th>
-                                            <th className="border p-1.5 text-center">Đá</th>
-                                            <th className="border p-1.5 text-center">ĐX</th>
+                                            <th className="border p-1.5 text-center">Đá/ĐX</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -440,7 +441,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                                                 }`}>
                                                     {region === 'mb' ? 'MB' : region === 'mt' ? 'MT' : 'MN'}
                                                 </td>
-                                                {(['2c', '3c-4c', 'da', 'dx'] as const).map((type) => (
+                                                {(['2c', '3c-4c', 'da'] as const).map((type) => (
                                                     <td key={type} className="border p-1">
                                                         <Input
                                                             type="number"
