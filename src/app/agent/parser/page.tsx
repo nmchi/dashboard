@@ -409,8 +409,8 @@ export default function ParserPage() {
                     </button>
 
                     <button
-                        onClick={() => setMessage('')}
-                        disabled={!message.trim()}
+                        onClick={() => { setMessage(''); setResult(null); setTotalsByType(null); }}
+                        disabled={!message.trim() && !result}
                         type="button"
                         className="w-full sm:w-auto px-4 sm:px-6 py-2.5 rounded-lg border border-slate-300 text-white bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base"
                     >

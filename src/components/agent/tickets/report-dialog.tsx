@@ -54,6 +54,16 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
         mt: { '2c': DEFAULT_NHAN_VE, '3c-4c': DEFAULT_NHAN_VE, 'da': DEFAULT_NHAN_VE, 'dx': DEFAULT_NHAN_VE },
         mn: { '2c': DEFAULT_NHAN_VE, '3c-4c': DEFAULT_NHAN_VE, 'da': DEFAULT_NHAN_VE, 'dx': DEFAULT_NHAN_VE },
     });
+
+    const [nhanVeInputs, setNhanVeInputs] = useState<{
+        mb: { '2c': string; '3c-4c': string; 'da': string };
+        mt: { '2c': string; '3c-4c': string; 'da': string };
+        mn: { '2c': string; '3c-4c': string; 'da': string };
+    }>({
+        mb: { '2c': String(DEFAULT_NHAN_VE), '3c-4c': String(DEFAULT_NHAN_VE), 'da': String(DEFAULT_NHAN_VE) },
+        mt: { '2c': String(DEFAULT_NHAN_VE), '3c-4c': String(DEFAULT_NHAN_VE), 'da': String(DEFAULT_NHAN_VE) },
+        mn: { '2c': String(DEFAULT_NHAN_VE), '3c-4c': String(DEFAULT_NHAN_VE), 'da': String(DEFAULT_NHAN_VE) },
+    });
     
     const [reportData, setReportData] = useState<ReportData | null>(null);
     const [drawDate, setDrawDate] = useState<string>('');
@@ -235,14 +245,37 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
     };
 
     const updateNhanVe = (region: 'mb' | 'mt' | 'mn', type: '2c' | '3c-4c' | 'da', value: string) => {
-        const numValue = parseFloat(value) || DEFAULT_NHAN_VE;
+        setNhanVeInputs(prev => ({
+            ...prev,
+            [region]: { ...prev[region], [type]: value },
+        }));
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+            setNhanVe(prev => ({
+                ...prev,
+                [region]: {
+                    ...prev[region],
+                    [type]: numValue,
+                    ...(type === 'da' ? { 'dx': numValue } : {}),
+                }
+            }));
+        }
+    };
+
+    const commitNhanVe = (region: 'mb' | 'mt' | 'mn', type: '2c' | '3c-4c' | 'da') => {
+        const raw = nhanVeInputs[region][type];
+        const numValue = parseFloat(raw);
+        const finalValue = isNaN(numValue) ? DEFAULT_NHAN_VE : numValue;
+        setNhanVeInputs(prev => ({
+            ...prev,
+            [region]: { ...prev[region], [type]: String(finalValue) },
+        }));
         setNhanVe(prev => ({
             ...prev,
             [region]: {
                 ...prev[region],
-                [type]: numValue,
-                // da và dx dùng chung tỷ lệ
-                ...(type === 'da' ? { 'dx': numValue } : {}),
+                [type]: finalValue,
+                ...(type === 'da' ? { 'dx': finalValue } : {}),
             }
         }));
     };
@@ -446,8 +479,9 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                                                         <Input
                                                             type="number"
                                                             step="0.01"
-                                                            value={nhanVe[region][type]}
+                                                            value={nhanVeInputs[region][type]}
                                                             onChange={(e) => updateNhanVe(region, type, e.target.value)}
+                                                            onBlur={() => commitNhanVe(region, type)}
                                                             className="h-9 text-center w-full min-w-[60px]"
                                                         />
                                                     </td>
