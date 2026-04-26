@@ -33,6 +33,34 @@ interface ReportData {
 }
 
 const DEFAULT_NHAN_VE = 0.95;
+const NHANVE_KEY = 'report-nhanve';
+
+type NhanVeState = {
+    mb: { '2c': number; '3c-4c': number; 'da': number; 'dx': number };
+    mt: { '2c': number; '3c-4c': number; 'da': number; 'dx': number };
+    mn: { '2c': number; '3c-4c': number; 'da': number; 'dx': number };
+};
+
+const defaultNhanVe = (): NhanVeState => ({
+    mb: { '2c': DEFAULT_NHAN_VE, '3c-4c': DEFAULT_NHAN_VE, 'da': DEFAULT_NHAN_VE, 'dx': DEFAULT_NHAN_VE },
+    mt: { '2c': DEFAULT_NHAN_VE, '3c-4c': DEFAULT_NHAN_VE, 'da': DEFAULT_NHAN_VE, 'dx': DEFAULT_NHAN_VE },
+    mn: { '2c': DEFAULT_NHAN_VE, '3c-4c': DEFAULT_NHAN_VE, 'da': DEFAULT_NHAN_VE, 'dx': DEFAULT_NHAN_VE },
+});
+
+const loadNhanVe = (): NhanVeState => {
+    if (typeof window === 'undefined') return defaultNhanVe();
+    try {
+        const saved = localStorage.getItem(NHANVE_KEY);
+        if (!saved) return defaultNhanVe();
+        const parsed = JSON.parse(saved) as NhanVeState;
+        const regions = ['mb', 'mt', 'mn'] as const;
+        const types = ['2c', '3c-4c', 'da', 'dx'] as const;
+        const valid = regions.every(r => types.every(t => typeof parsed[r]?.[t] === 'number'));
+        return valid ? parsed : defaultNhanVe();
+    } catch {
+        return defaultNhanVe();
+    }
+};
 
 export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportDialogProps) {
     const [open, setOpen] = useState(false);
@@ -45,24 +73,15 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
     const [showThucThuTotal, setShowThucThuTotal] = useState(true);
     const [detailMode, setDetailMode] = useState<'off' | 'xac' | 'thucthu'>('off');
     
-    const [nhanVe, setNhanVe] = useState<{
-        mb: { '2c': number; '3c-4c': number; 'da': number; 'dx': number };
-        mt: { '2c': number; '3c-4c': number; 'da': number; 'dx': number };
-        mn: { '2c': number; '3c-4c': number; 'da': number; 'dx': number };
-    }>({
-        mb: { '2c': DEFAULT_NHAN_VE, '3c-4c': DEFAULT_NHAN_VE, 'da': DEFAULT_NHAN_VE, 'dx': DEFAULT_NHAN_VE },
-        mt: { '2c': DEFAULT_NHAN_VE, '3c-4c': DEFAULT_NHAN_VE, 'da': DEFAULT_NHAN_VE, 'dx': DEFAULT_NHAN_VE },
-        mn: { '2c': DEFAULT_NHAN_VE, '3c-4c': DEFAULT_NHAN_VE, 'da': DEFAULT_NHAN_VE, 'dx': DEFAULT_NHAN_VE },
-    });
+    const [nhanVe, setNhanVe] = useState<NhanVeState>(loadNhanVe);
 
-    const [nhanVeInputs, setNhanVeInputs] = useState<{
-        mb: { '2c': string; '3c-4c': string; 'da': string };
-        mt: { '2c': string; '3c-4c': string; 'da': string };
-        mn: { '2c': string; '3c-4c': string; 'da': string };
-    }>({
-        mb: { '2c': String(DEFAULT_NHAN_VE), '3c-4c': String(DEFAULT_NHAN_VE), 'da': String(DEFAULT_NHAN_VE) },
-        mt: { '2c': String(DEFAULT_NHAN_VE), '3c-4c': String(DEFAULT_NHAN_VE), 'da': String(DEFAULT_NHAN_VE) },
-        mn: { '2c': String(DEFAULT_NHAN_VE), '3c-4c': String(DEFAULT_NHAN_VE), 'da': String(DEFAULT_NHAN_VE) },
+    const [nhanVeInputs, setNhanVeInputs] = useState(() => {
+        const nv = loadNhanVe();
+        return {
+            mb: { '2c': String(nv.mb['2c']), '3c-4c': String(nv.mb['3c-4c']), 'da': String(nv.mb['da']) },
+            mt: { '2c': String(nv.mt['2c']), '3c-4c': String(nv.mt['3c-4c']), 'da': String(nv.mt['da']) },
+            mn: { '2c': String(nv.mn['2c']), '3c-4c': String(nv.mn['3c-4c']), 'da': String(nv.mn['da']) },
+        };
     });
     
     const [reportData, setReportData] = useState<ReportData | null>(null);
@@ -97,6 +116,12 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
             fetchReport();
         }
     }, [open, fetchReport]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(NHANVE_KEY, JSON.stringify(nhanVe));
+        } catch { /* ignore */ }
+    }, [nhanVe]);
 
     const calculateRegionTotal = useCallback((region: 'mb' | 'mt' | 'mn') => {
         if (!reportData) return {
