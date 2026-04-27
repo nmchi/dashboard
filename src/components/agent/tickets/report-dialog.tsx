@@ -95,10 +95,10 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
             if (playerId) params.append('userId', playerId);
             if (dateFrom) params.append('dateFrom', dateFrom);
             if (dateTo) params.append('dateTo', dateTo);
-            
+
             const res = await fetch(`/api/tickets/report?${params}`);
             const data = await res.json();
-            
+
             if (data.success) {
                 setReportData(data.data);
                 setDrawDate(data.drawDate || '');
@@ -154,11 +154,13 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
 
         const cailoi = thucthu - trung;
 
+        const applyRate = (diff: number, rate: number) => diff > 0 ? diff * rate : diff;
+
         const tongCaiLoi =
-            (data['2c'].thucthu - data['2c'].winAmount) * rates['2c'] +
-            (data['3c-4c'].thucthu - data['3c-4c'].winAmount) * rates['3c-4c'] +
-            (data['da'].thucthu - data['da'].winAmount) * rates['da'] +
-            (data['dx'].thucthu - data['dx'].winAmount) * rates['dx'];
+            applyRate(data['2c'].thucthu - data['2c'].winAmount, rates['2c']) +
+            applyRate(data['3c-4c'].thucthu - data['3c-4c'].winAmount, rates['3c-4c']) +
+            applyRate(data['da'].thucthu - data['da'].winAmount, rates['da']) +
+            applyRate(data['dx'].thucthu - data['dx'].winAmount, rates['dx']);
 
         const trungDetail = {
             '2c': data['2c'].winAmount,
@@ -209,7 +211,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
         if (noCu1) text += `Nợ cũ 1: ${noCu1}\n`;
         if (noCu2) text += `Nợ cũ 2: ${noCu2}\n`;
         
-        text += `\n${drawDate}, ${dayOfWeek}\n\n`;
+        text += `\n${dateRangeLabel}\n\n`;
         
         const regions: Array<{ key: 'mn' | 'mt' | 'mb'; name: string }> = [
             { key: 'mn', name: 'MN' },
@@ -305,6 +307,15 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
         }));
     };
 
+    const dateRangeLabel = useMemo(() => {
+        if (!dateFrom) return drawDate && dayOfWeek ? `${drawDate}, ${dayOfWeek}` : '';
+        if (!dateTo || dateFrom === dateTo) {
+            return drawDate && dayOfWeek ? `${drawDate}, ${dayOfWeek}` : dateFrom;
+        }
+        const fmt = (s: string) => new Date(s + 'T00:00:00').toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        return `${fmt(dateFrom)} — ${fmt(dateTo)}`;
+    }, [dateFrom, dateTo, drawDate, dayOfWeek]);
+
     const grandTotal = calculateGrandTotal();
 
     return (
@@ -327,7 +338,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                         )}
                     </DialogTitle>
                 </DialogHeader>
-                
+
                 {loading ? (
                     <div className="py-8 text-center text-slate-500">Đang tải...</div>
                 ) : (
@@ -410,7 +421,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                         
                         {/* Kết quả */}
                         <div className="bg-slate-50 rounded-lg p-3 font-mono text-xs sm:text-sm overflow-x-auto">
-                            <div className="mb-2 font-semibold text-sm">{drawDate}, {dayOfWeek}</div>
+                            <div className="mb-2 font-semibold text-sm">{dateRangeLabel}</div>
                             
                             {reportData && (
                                 <>
@@ -476,7 +487,7 @@ export function ReportDialog({ playerId, playerName, dateFrom, dateTo }: ReportD
                         {/* Bảng tỷ lệ nhận về */}
                         <div>
                             <div className="text-xs text-orange-600 mb-2">
-                                Lưu ý: không nhận về thì điền 1, mặc định 0.95
+                                Lưu ý: không nhân về thì điền 1, mặc định 0.95
                             </div>
                             
                             <div className="overflow-x-auto -mx-3 px-3">

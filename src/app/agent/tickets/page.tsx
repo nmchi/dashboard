@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "@/lib/auth-client";
 import { TicketStatus, Region } from "@prisma/client";
 import Link from "next/link";
@@ -76,9 +76,37 @@ export default function TicketListPage() {
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     
+    const [period, setPeriod] = useState<'day' | 'week' | 'month'>('day');
     const [dateFilter, setDateFilter] = useState<string>(() => {
         return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
     });
+
+    const { effectiveDateFrom, effectiveDateTo } = useMemo(() => {
+        if (period === 'day') return { effectiveDateFrom: dateFilter, effectiveDateTo: dateFilter };
+
+        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+        const ref = new Date(todayStr + 'T00:00:00');
+
+        if (period === 'week') {
+            const day = ref.getDay();
+            const toMonday = day === 0 ? -6 : 1 - day;
+            const monday = new Date(ref);
+            monday.setDate(ref.getDate() + toMonday);
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            return {
+                effectiveDateFrom: monday.toLocaleDateString('en-CA'),
+                effectiveDateTo: sunday.toLocaleDateString('en-CA'),
+            };
+        }
+
+        const firstDay = new Date(ref.getFullYear(), ref.getMonth(), 1);
+        const lastDay = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
+        return {
+            effectiveDateFrom: firstDay.toLocaleDateString('en-CA'),
+            effectiveDateTo: lastDay.toLocaleDateString('en-CA'),
+        };
+    }, [period, dateFilter]);
 
     useEffect(() => {
         const fetchPlayers = async () => {
@@ -120,14 +148,14 @@ export default function TicketListPage() {
                 params.append('status', statusFilter);
             }
             
-            if (dateFilter) {
-                params.append('dateFrom', dateFilter);
-                params.append('dateTo', dateFilter);
+            if (effectiveDateFrom) {
+                params.append('dateFrom', effectiveDateFrom);
+                params.append('dateTo', effectiveDateTo);
             }
-            
+
             const res = await fetch(`/api/tickets?${params}`);
             const data = await res.json();
-            
+
             if (data.success) {
                 setTickets(data.data);
                 setPagination(data.pagination);
@@ -137,7 +165,7 @@ export default function TicketListPage() {
         } finally {
             setLoading(false);
         }
-    }, [session?.user?.id, selectedPlayerId, pagination.page, pagination.limit, statusFilter, dateFilter]);
+    }, [session?.user?.id, selectedPlayerId, pagination.page, pagination.limit, statusFilter, effectiveDateFrom, effectiveDateTo]);
 
     useEffect(() => {
         fetchTickets();
@@ -378,27 +406,57 @@ export default function TicketListPage() {
                     </div>
                 </div>
                 
-                {/* Row 2: Date + Report */}
+                {/* Row 2: Period + Date + Report */}
                 <div className="grid grid-cols-2 gap-2">
-                    <div>
-                        <label className="block text-xs text-slate-500 mb-1">Ngày</label>
-                        <input
-                            type="date"
-                            value={dateFilter}
-                            onChange={(e) => {
-                                setDateFilter(e.target.value);
-                                setPagination(p => ({ ...p, page: 1 }));
-                            }}
-                            className="w-full border rounded-lg px-2 py-2 text-sm"
-                        />
+                    <div className="space-y-1.5">
+                        <label className="block text-xs text-slate-500">Kỳ</label>
+                        <div className="flex gap-1">
+                            {(['day', 'week', 'month'] as const).map((p) => (
+                                <button
+                                    key={p}
+                                    onClick={() => { setPeriod(p); setPagination(prev => ({ ...prev, page: 1 })); }}
+                                    className={`flex-1 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                                        period === p
+                                            ? 'bg-blue-600 text-white border-blue-600'
+                                            : 'bg-white text-slate-600 border-slate-300'
+                                    }`}
+                                >
+                                    {p === 'day' ? 'Ngày' : p === 'week' ? 'Tuần' : 'Tháng'}
+                                </button>
+                            ))}
+                        </div>
+                        {period === 'day' ? (
+                            <input
+                                type="date"
+                                value={dateFilter}
+                                onChange={(e) => {
+                                    setDateFilter(e.target.value);
+                                    setPagination(prev => ({ ...prev, page: 1 }));
+                                }}
+                                className="w-full border rounded-lg px-2 py-2 text-sm"
+                            />
+                        ) : (
+                            <div className="w-full border rounded-lg px-2 py-2 text-xs text-slate-600 bg-slate-50">
+                                {period === 'week'
+                                    ? (() => {
+                                        const fmt = (s: string) => new Date(s + 'T00:00:00').toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+                                        return `${fmt(effectiveDateFrom)} - ${fmt(effectiveDateTo)}`;
+                                    })()
+                                    : (() => {
+                                        const d = new Date(effectiveDateFrom + 'T00:00:00');
+                                        return `Tháng ${d.getMonth() + 1}/${d.getFullYear()}`;
+                                    })()
+                                }
+                            </div>
+                        )}
                     </div>
-                    
+
                     <div className="flex items-end">
                         <ReportDialog
                             playerId={selectedPlayerId}
                             playerName={selectedPlayerName}
-                            dateFrom={dateFilter || undefined}
-                            dateTo={dateFilter || undefined}
+                            dateFrom={effectiveDateFrom || undefined}
+                            dateTo={effectiveDateTo || undefined}
                         />
                     </div>
                 </div>
